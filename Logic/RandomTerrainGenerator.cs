@@ -16,10 +16,15 @@ public partial class RandomTerrainGenerator : Node
 		{
 			// Используем Перлин-шум для плавных переходов
 			NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
-			// Частота влияет на детализацию
-			Frequency = 0.05f,
+			// Частота влияет на детализацию (баланс между гладкостью и деталями)
+			Frequency = 0.04f, // Компромисс между плавностью и деталями
 			// Используем случайное зерно для разнообразия
-			Seed = (int)GD.Randi()
+			Seed = (int)GD.Randi(),
+			// Добавляем фрактальный шум для более естественного вида
+			FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
+			FractalOctaves = 2, // Уменьшено для более естественного вида (меньше размытия)
+			FractalLacunarity = 2.0f,
+			FractalGain = 0.6f // Увеличено для более выраженных деталей
 		};
 
 		// Генерация меша через MeshBuilder с переданным шумом

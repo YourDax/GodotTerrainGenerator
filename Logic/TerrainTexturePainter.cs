@@ -71,45 +71,91 @@ public static class TerrainTexturePainter
 			return;
 		}
 
-		// Получаем массив вершин из первой поверхности ArrayMesh
+		// Получаем массивы вершин и UV из первой поверхности ArrayMesh
 		var arrays = arrayMesh.SurfaceGetArrays(0);
 		Godot.Collections.Array verticesArray = (Godot.Collections.Array)arrays[(int)ArrayMesh.ArrayType.Vertex];
-		if (verticesArray == null)
+		Godot.Collections.Array uvArray = (Godot.Collections.Array)arrays[(int)ArrayMesh.ArrayType.TexUV];
+		
+		if (verticesArray == null || uvArray == null)
 		{
-			GD.PrintErr("Не удалось получить вершины из ArrayMesh!");
+			GD.PrintErr("Не удалось получить вершины или UV из ArrayMesh!");
 			return;
 		}
 
 		// Проверка на пустой массив вершин
-		if (verticesArray.Count == 0)
+		if (verticesArray.Count == 0 || uvArray.Count == 0)
 		{
-			GD.PrintErr("Массив вершин пуст!");
+			GD.PrintErr("Массив вершин или UV пуст!");
 			return;
 		}
 
 		// Определяем размер сетки (число вершин по одной оси)
 		int meshRes = (int)Mathf.Sqrt(verticesArray.Count);
 
+		// Создаем карту высот используя UV координаты для правильного маппинга
+		// Это необходимо, так как SurfaceTool может изменить порядок вершин
+		float[,] heightMap = new float[meshRes, meshRes];
+		bool[,] heightMapFilled = new bool[meshRes, meshRes];
+		
+		// Заполняем карту высот, используя UV координаты для определения позиции
+		for (int i = 0; i < verticesArray.Count; i++)
+		{
+			Vector2 uv = (Vector2)uvArray[i];
+			Vector3 vert = (Vector3)verticesArray[i];
+			
+			// Преобразуем UV (0..1) в координаты сетки
+			int x = (int)Mathf.Round(uv.X * (meshRes - 1));
+			int z = (int)Mathf.Round(uv.Y * (meshRes - 1));
+			
+			// Ограничиваем границы
+			x = Mathf.Clamp(x, 0, meshRes - 1);
+			z = Mathf.Clamp(z, 0, meshRes - 1);
+			
+			// Если ячейка еще не заполнена или это более точное значение, сохраняем
+			if (!heightMapFilled[x, z] || Mathf.Abs(uv.X * (meshRes - 1) - x) < 0.1f)
+			{
+				heightMap[x, z] = vert.Y;
+				heightMapFilled[x, z] = true;
+			}
+		}
+		
+		// Заполняем пропущенные ячейки интерполяцией
+		for (int z = 0; z < meshRes; z++)
+		{
+			for (int x = 0; x < meshRes; x++)
+			{
+				if (!heightMapFilled[x, z])
+				{
+					// Ищем ближайшие заполненные ячейки
+					float sum = 0;
+					int count = 0;
+					for (int dz = -1; dz <= 1; dz++)
+					{
+						for (int dx = -1; dx <= 1; dx++)
+						{
+							int nx = x + dx;
+							int nz = z + dz;
+							if (nx >= 0 && nx < meshRes && nz >= 0 && nz < meshRes && heightMapFilled[nx, nz])
+							{
+								sum += heightMap[nx, nz];
+								count++;
+							}
+						}
+					}
+					if (count > 0)
+					{
+						heightMap[x, z] = sum / count;
+						heightMapFilled[x, z] = true;
+					}
+				}
+			}
+		}
+
 		// Разрешение итоговой текстуры
 		int texRes = 1024;
 
 		// Создаем пустое изображение с форматом RGBA8
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
-
-		// Создаем карту высот для билинейной интерполяции
-		float[,] heightMap = new float[meshRes, meshRes];
-		for (int z = 0; z < meshRes; z++)
-		{
-			for (int x = 0; x < meshRes; x++)
-			{
-				int idx = z * meshRes + x;
-				if (idx < verticesArray.Count)
-				{
-					Vector3 vert = (Vector3)verticesArray[idx];
-					heightMap[x, z] = vert.Y;
-				}
-			}
-		}
 
 		// Основной цикл по пикселям итоговой текстуры
 		for (int z = 0; z < texRes; z++)

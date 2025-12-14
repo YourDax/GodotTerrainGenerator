@@ -11,15 +11,13 @@ public static class MeshBuilder
 		FastNoiseLite noise
 	)
 	{
-		// Создаём массив вершин фиксированного размера
-		var vertices = new Vector3[resolution * resolution];
-		// Массив индексов для треугольников (6 индексов на одну квадратную ячейку)
-		var indices = new int[(resolution - 1) * (resolution - 1) * 6];
-		// Массив UV координат для текстурирования
-		var uvs = new Vector2[resolution * resolution];
+		// Используем SurfaceTool для более гладкого меша с нормалями
+		SurfaceTool st = new SurfaceTool();
+		st.Begin(Mesh.PrimitiveType.Triangles);
 
-		// Индекс текущей вершины
-		int v = 0;
+		// Массивы для хранения вершин и UV (для правильной индексации)
+		Vector3[] vertices = new Vector3[resolution * resolution];
+		Vector2[] uvs = new Vector2[resolution * resolution];
 
 		// Генерация сетки вершин
 		for (int z = 0; z < resolution; z++)
@@ -34,25 +32,25 @@ public static class MeshBuilder
 				float wx = px * length - length / 2f;
 				float wz = pz * width - width / 2f;
 
-				// Получение шума по координатам
+				// Получение шума по координатам (основной рельеф)
 				float n = noise.GetNoise2D(wx, wz);
+				
+				// Добавляем дополнительный слой деталей для более естественного вида
+				// Используем более высокую частоту для мелких деталей
+				float detailNoise = noise.GetNoise2D(wx * 3.0f, wz * 3.0f) * 0.15f;
+				n += detailNoise;
+				
 				// Преобразование шума [-1..1] в высоту [minHeight..maxHeight]
 				float height = Mathf.Lerp(minHeight, maxHeight, (n + 1f) * 0.5f);
 
-				// Добавление вершины в массив
-				vertices[v] = new Vector3(wx, height, wz);
-				// Запись UV координат
-				uvs[v] = new Vector2(px, pz);
-
-				// Переход к следующей вершине
-				v++;
+				// Сохраняем вершину и UV
+				int idx = z * resolution + x;
+				vertices[idx] = new Vector3(wx, height, wz);
+				uvs[idx] = new Vector2(px, pz);
 			}
 		}
 
-		// Индекс для записи треугольников
-		int t = 0;
-
-		// Генерация индексов треугольников
+		// Генерация треугольников с использованием SurfaceTool
 		for (int z = 0; z < resolution - 1; z++)
 		{
 			for (int x = 0; x < resolution - 1; x++)
@@ -64,30 +62,29 @@ public static class MeshBuilder
 				int d = b + 1;
 
 				// Первый треугольник (a, b, c)
-				indices[t++] = a;
-				indices[t++] = b;
-				indices[t++] = c;
+				st.SetUV(uvs[a]);
+				st.AddVertex(vertices[a]);
+				st.SetUV(uvs[b]);
+				st.AddVertex(vertices[b]);
+				st.SetUV(uvs[c]);
+				st.AddVertex(vertices[c]);
 
 				// Второй треугольник (c, b, d)
-				indices[t++] = c;
-				indices[t++] = b;
-				indices[t++] = d;
+				st.SetUV(uvs[c]);
+				st.AddVertex(vertices[c]);
+				st.SetUV(uvs[b]);
+				st.AddVertex(vertices[b]);
+				st.SetUV(uvs[d]);
+				st.AddVertex(vertices[d]);
 			}
 		}
 
-		// Создаём Array для GodotMesh
-		var arrays = new Godot.Collections.Array();
-		// Размер задаётся по количеству типов данных, требуемых Mesh
-		arrays.Resize((int)Mesh.ArrayType.Max);
+		// Генерируем нормали для сглаживания поверхности
+		// Используем параметр smooth=true для плавных переходов, но не слишком размытых
+		st.GenerateNormals();
 
-		// Записываем массивы в структуру для меша
-		arrays[(int)Mesh.ArrayType.Vertex] = vertices;
-		arrays[(int)Mesh.ArrayType.Index] = indices;
-		arrays[(int)Mesh.ArrayType.TexUV] = uvs;
-
-		// Создаём меш и добавляем поверхность
-		var mesh = new ArrayMesh();
-		mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+		// Финализируем меш
+		ArrayMesh mesh = st.Commit();
 
 		// Возвращаем готовый меш
 		return mesh;
