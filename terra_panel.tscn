@@ -1,0 +1,202 @@
+[gd_scene load_steps=3 format=3 uid="uid://b8b4r624p1cj8"]
+
+[ext_resource type="Script" uid="uid://beoun4ig67evt" path="res://addons/terragenerating/terra_panel.gd" id="1_ker3i"]
+
+[sub_resource type="GDScript" id="GDScript_8n5ej"]
+script/source = "extends Button
+"
+
+[node name="TerraPanel" type="VBoxContainer"]
+script = ExtResource("1_ker3i")
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 2
+text = "Terra Generating"
+horizontal_alignment = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="HBoxContainer X" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Xbox" type="SpinBox" parent="VBoxContainer/HBoxContainer X"]
+layout_mode = 2
+value = 50.0
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer X"]
+layout_mode = 2
+text = "X - длинна"
+
+[node name="HBoxContainer Z" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Zbox" type="SpinBox" parent="VBoxContainer/HBoxContainer Z"]
+layout_mode = 2
+value = 50.0
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Z"]
+layout_mode = 2
+text = "Z - ширина"
+
+[node name="HBoxContainer Min Y" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MinYbox" type="SpinBox" parent="VBoxContainer/HBoxContainer Min Y"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Min Y"]
+layout_mode = 2
+text = "Y - мин. высота"
+
+[node name="HBoxContainer Max Y" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MaxYbox" type="SpinBox" parent="VBoxContainer/HBoxContainer Max Y"]
+layout_mode = 2
+value = 50.0
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Max Y"]
+layout_mode = 2
+text = "Y - макс. высота"
+
+[node name="HBoxContainer SandGrass" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="SandGrass" type="SpinBox" parent="VBoxContainer/HBoxContainer SandGrass"]
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+value = 0.35
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer SandGrass"]
+layout_mode = 2
+text = "Граница песок-трава"
+
+[node name="HBoxContainer GrassRock" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="GrassRock" type="SpinBox" parent="VBoxContainer/HBoxContainer GrassRock"]
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+value = 0.65
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer GrassRock"]
+layout_mode = 2
+text = "Граница трава-камень"
+
+[node name="HBoxContainer WaterLevel" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="WaterLevel" type="SpinBox" parent="VBoxContainer/HBoxContainer WaterLevel"]
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+value = 0.35
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer WaterLevel"]
+layout_mode = 2
+text = "Высота воды"
+
+[node name="HBoxContainer Resolution" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Resolution" type="SpinBox" parent="VBoxContainer/HBoxContainer Resolution"]
+layout_mode = 2
+min_value = 16.0
+max_value = 128.0
+value = 64.0
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Resolution"]
+layout_mode = 2
+text = "Resolution"
+
+[node name="HBoxContainer PngImg" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="FileDialog" type="FileDialog" parent="VBoxContainer/HBoxContainer PngImg"]
+oversampling_override = 1.0
+display_mode = 1
+access = 2
+filters = PackedStringArray("*.png ; PNG Images")
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer PngImg"]
+layout_mode = 2
+text = "Путь сохранения текстуры"
+
+[node name="TextureSave" type="Button" parent="VBoxContainer/HBoxContainer PngImg"]
+layout_mode = 2
+text = "Выбрать"
+script = SubResource("GDScript_8n5ej")
+
+[node name="VBoxContainerRealMap" type="VBoxContainer" parent="."]
+visible = false
+layout_mode = 2
+
+[node name="HBoxContainerLeftUpLat" type="HBoxContainer" parent="VBoxContainerRealMap"]
+layout_mode = 2
+
+[node name="LeftUpLat" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerLeftUpLat"]
+layout_mode = 2
+min_value = -100.0
+step = 0.001
+value = 46.02000000000001
+custom_arrow_step = 0.001
+
+[node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerLeftUpLat"]
+layout_mode = 2
+text = "Лево-верх долгота"
+
+[node name="HBoxContainerLeftUpLng" type="HBoxContainer" parent="VBoxContainerRealMap"]
+layout_mode = 2
+
+[node name="LeftUpLng" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerLeftUpLng"]
+layout_mode = 2
+min_value = -100.0
+step = 0.001
+value = 46.02000000000001
+custom_arrow_step = 0.001
+
+[node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerLeftUpLng"]
+layout_mode = 2
+text = "Лево-верх широта"
+
+[node name="HBoxContainerRightDownLat" type="HBoxContainer" parent="VBoxContainerRealMap"]
+layout_mode = 2
+
+[node name="RightDownLat" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerRightDownLat"]
+layout_mode = 2
+min_value = -100.0
+step = 0.001
+value = 50.22
+custom_arrow_step = 0.001
+
+[node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerRightDownLat"]
+layout_mode = 2
+text = "Право-низ долгота"
+
+[node name="HBoxContainerRightDownLng" type="HBoxContainer" parent="VBoxContainerRealMap"]
+layout_mode = 2
+
+[node name="RightDownLng" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerRightDownLng"]
+layout_mode = 2
+min_value = -100.0
+step = 0.001
+value = 50.22
+custom_arrow_step = 0.001
+
+[node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerRightDownLng"]
+layout_mode = 2
+text = "Право-низ широта"
+
+[node name="RealMapCheck" type="CheckBox" parent="."]
+layout_mode = 2
+text = "Режим реальной карты"
+
+[node name="GenerateButton" type="Button" parent="."]
+layout_mode = 2
+text = "Создать"
+script = SubResource("GDScript_8n5ej")
+
+[connection signal="pressed" from="GenerateButton" to="." method="_on_generate_button_pressed"]
