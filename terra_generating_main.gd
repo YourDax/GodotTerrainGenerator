@@ -2,7 +2,7 @@
 extends EditorPlugin
 
 var panel
-const TERRA_PANEL = preload("res://addons/TerraGenerating/terra_panel.tscn")
+const TERRA_PANEL = preload("res://addons/terragenerating/terra_panel.tscn")
 const TERRAIN_SCENE = preload("res://addons/terragenerating/Logic/TerrainGenerator.tscn")
 
 

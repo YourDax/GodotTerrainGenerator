@@ -1,7 +1,7 @@
 @tool
 extends VBoxContainer
 
-signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, south, north, west, east)
+signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, leftuplat, leftuplng, rightdownlat, rightdownlng)
 
 @onready var length_field = $"VBoxContainer/HBoxContainer X/Xbox"
 @onready var width_field = $"VBoxContainer/HBoxContainer Z/Zbox"

@@ -14,7 +14,7 @@ public static class RealMapTerrainGenerator
 
 	// Параметры пакетной отправки запросов
 	private const int BATCH_SIZE = 100;
-	private const int MAX_REQUESTS = 10;
+	private const int MAX_REQUESTS = 100; // Увеличено для поддержки больших разрешений
 	private const int REQUEST_DELAY_MS = 7000;
 
 	// Диапазон нормализованных высот (в метрах)
@@ -25,7 +25,8 @@ public static class RealMapTerrainGenerator
 	private const float MAX_MESH_UNITS = 200f;
 	private const float MIN_MESH_UNITS = 8f;
 	private const float METERS_TO_UNITS = 0.01f;
-	private const float VERTICAL_SCALE = 0.5f;
+	private const float VERTICAL_SCALE = 1.0f; // Будет переопределен динамически
+	private const float HEIGHT_TO_MESH_RATIO = 0.15f; // Высоты занимают 15% от размера меша
 
 	// Основной метод генерации рельефа
 	public static async Task<Node3D> Generate(
@@ -83,14 +84,49 @@ public static class RealMapTerrainGenerator
 
 		GD.Print("✅ MeshInstance добавлен в сцену");
 
-		// Получаем min/max высот
+		// Получаем min/max высот (в метрах)
 		GetMinMax(heights, out float minH, out float maxH);
 
-		// Накладываем текстуры по высоте
+		// Вычисляем размер меша для правильного масштабирования высот
+		// Используем ту же логику, что и в BuildCenteredMesh
+		float meanLat = (leftUpLat + rightDownLat) * 0.5f;
+		meanLat = Mathf.DegToRad(meanLat);
+		const float METERS_PER_DEGREE_LAT = 111320f;
+		float metersPerDegLon = Mathf.Cos(meanLat) * METERS_PER_DEGREE_LAT;
+		
+		float north = Math.Max(leftUpLat, rightDownLat);
+		float south = Math.Min(leftUpLat, rightDownLat);
+		float west = Math.Min(leftUpLng, rightDownLng);
+		float east = Math.Max(leftUpLng, rightDownLng);
+		
+		float widthMeters = Math.Abs(east - west) * metersPerDegLon;
+		float depthMeters = Math.Abs(north - south) * METERS_PER_DEGREE_LAT;
+		float desiredSize = Math.Max(widthMeters, depthMeters);
+		float calculatedSizeUnits = desiredSize * METERS_TO_UNITS;
+		calculatedSizeUnits = Mathf.Clamp(calculatedSizeUnits, MIN_MESH_UNITS, MAX_MESH_UNITS);
+		if (float.IsNaN(calculatedSizeUnits) || calculatedSizeUnits <= 0f) calculatedSizeUnits = MIN_MESH_UNITS;
+		
+		// Масштабирование под максимум (как в BuildCenteredMesh)
+		float targetUnits = MAX_MESH_UNITS;
+		float scaleX = targetUnits / calculatedSizeUnits;
+		float scaleZ = targetUnits / calculatedSizeUnits;
+		float finalScale = Mathf.Min(Mathf.Min(scaleX, scaleZ), 1f);
+		float finalSizeUnits = calculatedSizeUnits * finalScale;
+
+		// Вычисляем масштабированные min/max для текстурирования
+		// Используем тот же finalSizeUnits, что был рассчитан выше
+		float heightRange2 = maxH - minH;
+		float targetMaxHeight2 = finalSizeUnits * HEIGHT_TO_MESH_RATIO;
+		float heightScale2 = heightRange2 > 0.001f ? targetMaxHeight2 / heightRange2 : 1f;
+		
+		float meshMinHeight = 0f; // Минимальная высота в меше всегда 0 (относительно minH)
+		float meshMaxHeight = heightRange2 * heightScale2; // Максимальная высота в меше
+
+		// Накладываем текстуры по высоте (используем масштабированные значения)
 		TerrainTexturePainter.ApplyHeightTexture(
 			meshInstance,
-			minH,
-			maxH,
+			meshMinHeight,
+			meshMaxHeight,
 			"res://textures/sand.png",
 			"res://textures/grass.png",
 			"res://textures/rock.png",
@@ -101,8 +137,6 @@ public static class RealMapTerrainGenerator
 
 		GD.Print("✅ Текстуры применены");
 
-		// Генерируем воду
-		GenerateWater(parent, owner, minH, maxH);
 
 		return meshInstance;
 	}
@@ -163,7 +197,11 @@ public static class RealMapTerrainGenerator
 		int reqCount = 0;
 
 		// Отправляем запросы пакетами
-		while (idx < points.Count && reqCount < MAX_REQUESTS)
+		// Вычисляем необходимое количество запросов
+		int requiredRequests = (int)Math.Ceiling(points.Count / (float)BATCH_SIZE);
+		int maxAllowedRequests = Math.Min(MAX_REQUESTS, requiredRequests);
+		
+		while (idx < points.Count && reqCount < maxAllowedRequests)
 		{
 			int take = Math.Min(BATCH_SIZE, points.Count - idx);
 			var batch = points.GetRange(idx, take);
@@ -276,6 +314,27 @@ public static class RealMapTerrainGenerator
 			await Task.Delay(REQUEST_DELAY_MS);
 		}
 
+		// Проверка на неполную загрузку данных
+		int loadedCount = 0;
+		int nanCount = 0;
+		for (int z = 0; z < resolution; z++)
+		{
+			for (int x = 0; x < resolution; x++)
+			{
+				if (!float.IsNaN(data[x, z]))
+					loadedCount++;
+				else
+					nanCount++;
+			}
+		}
+
+		GD.Print($"📊 Загружено точек: {loadedCount}/{resolution * resolution}, NaN: {nanCount}");
+		
+		if (idx < points.Count)
+		{
+			GD.PrintErr($"⚠️ ВНИМАНИЕ: Загружено не все данные! Осталось {points.Count - idx} точек из {points.Count}");
+		}
+
 		GD.Print("✅ Высотные данные загружены.");
 		return data;
 	}
@@ -337,13 +396,20 @@ public static class RealMapTerrainGenerator
 		int resZ = heights.GetLength(1);
 
 		// Средняя широта в радианах
-		float meanLat = (leftUpLat + rightDownLat) * 0.5f * Mathf.DegToRad;
+		float meanLat = (leftUpLat + rightDownLat) * 0.5f;
+		meanLat = Mathf.DegToRad(meanLat);
 		const float METERS_PER_DEGREE_LAT = 111320f;
 		float metersPerDegLon = Mathf.Cos(meanLat) * METERS_PER_DEGREE_LAT;
 
+		// Нормализуем координаты для правильного расчета размеров
+		float north = Math.Max(leftUpLat, rightDownLat);
+		float south = Math.Min(leftUpLat, rightDownLat);
+		float west = Math.Min(leftUpLng, rightDownLng);
+		float east = Math.Max(leftUpLng, rightDownLng);
+
 		// Вычисляем реальные размеры в метрах
-		float widthMeters = Math.Abs(rightDownLng - leftUpLng) * metersPerDegLon;
-		float depthMeters = Math.Abs(rightDownLat - leftUpLat) * METERS_PER_DEGREE_LAT;
+		float widthMeters = Math.Abs(east - west) * metersPerDegLon;
+		float depthMeters = Math.Abs(north - south) * METERS_PER_DEGREE_LAT;
 
 		// Вычисляем итоговый размер меша в юнитах Godot
 		float desiredSize = Math.Max(widthMeters, depthMeters);
@@ -384,6 +450,24 @@ public static class RealMapTerrainGenerator
 		// Получаем min/max высот
 		GetMinMax(heights, out float minH, out float maxH);
 
+		// Вычисляем масштаб для высот: масштабируем пропорционально размеру меша
+		// Это гарантирует, что рельеф будет заметен независимо от размера меша
+		float heightRange = maxH - minH;
+		
+		// Вычисляем масштаб так, чтобы максимальная высота занимала HEIGHT_TO_MESH_RATIO от размера меша
+		float targetMaxHeight = sizeUnits * HEIGHT_TO_MESH_RATIO;
+		float heightScale = heightRange > 0.001f ? targetMaxHeight / heightRange : 1f;
+		
+		GD.Print($"📏 Heights: min={minH:F1}m, max={maxH:F1}m, range={heightRange:F1}m");
+		GD.Print($"📏 Mesh size: {sizeUnits:F2} units, target max height: {targetMaxHeight:F2} units");
+		GD.Print($"📏 Height scale: {heightScale:F6} (height range {heightRange:F1}m -> {targetMaxHeight:F2} units)");
+		
+		// Проверяем, есть ли вариация в высотах
+		if (heightRange < 1.0f)
+		{
+			GD.PrintErr($"⚠️ ВНИМАНИЕ: Очень маленький диапазон высот ({heightRange:F2}m)! Ландшафт будет плоским.");
+		}
+
 		// Генерируем вершины и UV
 		for (int z = 0; z < resZ; z++)
 		{
@@ -391,7 +475,24 @@ public static class RealMapTerrainGenerator
 			{
 				float vx = x * stepX - halfX;
 				float vz = z * stepZ - halfZ;
-				float vy = heights[x, z] * VERTICAL_SCALE;
+				
+				// Высоты в метрах преобразуем в юниты Godot
+				float height = heights[x, z];
+				if (float.IsNaN(height))
+				{
+					height = minH; // Используем минимальную высоту для NaN
+				}
+				
+				// Преобразуем высоту из метров в юниты Godot
+				// Вычитаем minH чтобы начать с нуля, затем масштабируем пропорционально размеру меша
+				float heightInMeters = height - minH; // Относительная высота от минимума
+				float vy = heightInMeters * heightScale;
+				
+				// Логируем для отладки (только первые несколько вершин)
+				if (x < 3 && z < 3)
+				{
+					GD.Print($"Vertex [{x},{z}]: height={height:F1}m, relative={heightInMeters:F1}m, vy={vy:F3} units");
+				}
 
 				int idx = z * resX + x;
 				verts[idx] = new Vector3(vx, vy, vz);
@@ -481,20 +582,5 @@ public static class RealMapTerrainGenerator
 		GD.Print($"[{label}] min={min} max={max} delta={max - min}");
 	}
 
-	// Генерация плоскости воды
-	private static void GenerateWater(Node3D parent, Node owner, float minH, float maxH)
-	{
-		var random = new RandomTerrainGenerator();
 
-		float worldWater = Mathf.Lerp(minH, maxH, WATER_PERCENT);
-
-		var water = random.GenerateWaterPlane(
-			200,
-			200,
-			worldWater
-		);
-
-		parent.AddChild(water);
-		if (owner != null) water.Owner = owner;
-	}
 }

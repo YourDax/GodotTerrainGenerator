@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Threading.Tasks;
 
 [Tool]
 public partial class TerrainGenerator : Node3D
@@ -19,11 +20,10 @@ public partial class TerrainGenerator : Node3D
 		GD.Print("C# Generate() вызван из GDScript!");
 		if (realMapMode)
 		{
-			_ = RealMapTerrainGenerator.Generate(
-				this,
+			// Асинхронный вызов - запускаем в фоне
+			_ = GenerateRealMapTerrainAsync(
 				leftuplat, leftuplng,
-				rightdownlat, rightdownlng,
-				Owner
+				rightdownlat, rightdownlng
 			);
 			return;
 		}
@@ -88,5 +88,17 @@ public partial class TerrainGenerator : Node3D
 
 		AddChild(water);
 		if (Owner != null) water.Owner = Owner;
+	}
+
+	private async Task GenerateRealMapTerrainAsync(
+		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng
+	)
+	{
+		await RealMapTerrainGenerator.Generate(
+			this,
+			leftuplat, leftuplng,
+			rightdownlat, rightdownlng,
+			Owner
+		);
 	}
 }

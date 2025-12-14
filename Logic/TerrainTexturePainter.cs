@@ -40,11 +40,18 @@ public static class TerrainTexturePainter
 			return;
 		}
 
+		// Проверка путей к текстурам
+		if (string.IsNullOrEmpty(sandPath) || string.IsNullOrEmpty(grassPath) || string.IsNullOrEmpty(rockPath))
+		{
+			GD.PrintErr("Пути к текстурам не указаны!");
+			return;
+		}
+
 		// Загружаем текстуру песка
 		Image sandImg = new Image();
 		if (sandImg.Load(sandPath) != Error.Ok)
 		{
-			GD.PrintErr("Не удалось загрузить текстуру песка!");
+			GD.PrintErr($"Не удалось загрузить текстуру песка по пути: {sandPath}");
 			return;
 		}
 
@@ -52,7 +59,7 @@ public static class TerrainTexturePainter
 		Image grassImg = new Image();
 		if (grassImg.Load(grassPath) != Error.Ok)
 		{
-			GD.PrintErr("Не удалось загрузить текстуру травы!");
+			GD.PrintErr($"Не удалось загрузить текстуру травы по пути: {grassPath}");
 			return;
 		}
 
@@ -60,7 +67,7 @@ public static class TerrainTexturePainter
 		Image rockImg = new Image();
 		if (rockImg.Load(rockPath) != Error.Ok)
 		{
-			GD.PrintErr("Не удалось загрузить текстуру камня!");
+			GD.PrintErr($"Не удалось загрузить текстуру камня по пути: {rockPath}");
 			return;
 		}
 
@@ -70,6 +77,13 @@ public static class TerrainTexturePainter
 		if (verticesArray == null)
 		{
 			GD.PrintErr("Не удалось получить вершины из ArrayMesh!");
+			return;
+		}
+
+		// Проверка на пустой массив вершин
+		if (verticesArray.Count == 0)
+		{
+			GD.PrintErr("Массив вершин пуст!");
 			return;
 		}
 
@@ -99,7 +113,8 @@ public static class TerrainTexturePainter
 				Vector3 vert = (Vector3)verticesArray[vertIndex];
 
 				// Вычисляем нормализованную высоту (0 = низ, 1 = верх)
-				float h = (maxHeight - vert.Y) / (maxHeight - minHeight);
+				float heightRange = maxHeight - minHeight;
+				float h = heightRange > 0.001f ? (maxHeight - vert.Y) / heightRange : 0.5f;
 				h = Mathf.Clamp(h, 0f, 1f);
 
 				// Получаем пиксели из исходных текстур
