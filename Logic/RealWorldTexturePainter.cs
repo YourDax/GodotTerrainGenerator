@@ -84,7 +84,19 @@ public static class RealWorldTexturePainter
 		GD.Print($"🎨 RealWorldTexturePainter: minHeight={minHeight:F3}, maxHeight={maxHeight:F3}, range={heightRange:F3}");
 
 		// Разрешение итоговой текстуры
-		int texRes = 1024;
+		// Используем разумное разрешение для баланса между качеством и производительностью
+		int texRes = 1024; // Базовое разрешение
+		
+		// Для больших мешей немного увеличиваем, но не слишком сильно
+		int maxRes = Math.Max(meshResX, meshResZ);
+		if (maxRes > 80)
+		{
+			texRes = 1536; // Умеренное увеличение для больших мешей
+		}
+		else if (maxRes > 50)
+		{
+			texRes = 1280; // Небольшое увеличение для средних мешей
+		}
 
 		// Создаем пустое изображение с форматом RGBA8
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
@@ -135,10 +147,12 @@ public static class RealWorldTexturePainter
 				// Если высота перевернута, инвертируем h
 				h = 1.0f - h;
 
-				// Получаем пиксели из исходных текстур
-				Color sandColor = GetSample(sandImg, x, z, texRes);
-				Color grassColor = GetSample(grassImg, x, z, texRes);
-				Color rockColor = GetSample(rockImg, x, z, texRes);
+				// Получаем пиксели из исходных текстур с tiling для большей детализации
+				// Текстуры повторяются несколько раз по поверхности для увеличения деталей
+				float tileScale = 8.0f; // Текстура повторяется 8 раз - можно настроить
+				Color sandColor = GetSample(sandImg, x, z, texRes, tileScale);
+				Color grassColor = GetSample(grassImg, x, z, texRes, tileScale);
+				Color rockColor = GetSample(rockImg, x, z, texRes, tileScale);
 
 				Color finalColor;
 				// Плавные переходы с шириной 0.15
@@ -207,12 +221,18 @@ public static class RealWorldTexturePainter
 		}
 
 		// Создаем ImageTexture из итогового изображения
+		// Используем CreateFromImage с параметрами для лучшего качества
 		var tex = ImageTexture.CreateFromImage(finalImg);
+		
+		// В Godot 4 C# фильтрация настраивается через материал
+		// ImageTexture автоматически генерирует мипмапы если включено в настройках проекта
 
 		// Создаем материал и применяем текстуру
 		StandardMaterial3D mat = new StandardMaterial3D();
 		mat.AlbedoTexture = tex;
 		mat.CullMode = BaseMaterial3D.CullModeEnum.Back;
+		// Используем стандартную линейную фильтрацию с мипмапами для лучшего качества
+		mat.TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmaps;
 
 		// Назначаем материал на MeshInstance3D
 		meshInstance.MaterialOverride = mat;
@@ -221,10 +241,26 @@ public static class RealWorldTexturePainter
 	}
 
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам
-	private static Color GetSample(Image img, int x, int z, int texRes)
+	// Используем tiling (повторение) для увеличения детализации
+	private static Color GetSample(Image img, int x, int z, int texRes, float tileScale = 4.0f)
 	{
-		int tx = Mathf.Clamp((int)((float)x / (texRes - 1) * (img.GetWidth() - 1)), 0, img.GetWidth() - 1);
-		int tz = Mathf.Clamp((int)((float)z / (texRes - 1) * (img.GetHeight() - 1)), 0, img.GetHeight() - 1);
+		// Применяем tiling - текстура повторяется несколько раз
+		// tileScale определяет, сколько раз текстура повторяется по поверхности
+		float u = ((float)x / (texRes - 1)) * tileScale;
+		float v = ((float)z / (texRes - 1)) * tileScale;
+		
+		// Используем модуль для создания повторяющегося паттерна
+		u = u - Mathf.Floor(u);
+		v = v - Mathf.Floor(v);
+		
+		// Преобразуем в координаты текстуры
+		int tx = (int)(u * (img.GetWidth() - 1));
+		int tz = (int)(v * (img.GetHeight() - 1));
+		
+		// Ограничиваем границы
+		tx = Mathf.Clamp(tx, 0, img.GetWidth() - 1);
+		tz = Mathf.Clamp(tz, 0, img.GetHeight() - 1);
+		
 		return img.GetPixel(tx, tz);
 	}
 }

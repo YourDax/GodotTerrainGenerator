@@ -152,7 +152,18 @@ public static class TerrainTexturePainter
 		}
 
 		// Разрешение итоговой текстуры
-		int texRes = 1024;
+		// Используем разумное разрешение для баланса между качеством и производительностью
+		int texRes = 1024; // Базовое разрешение
+		
+		// Для больших мешей немного увеличиваем, но не слишком сильно
+		if (meshRes > 80)
+		{
+			texRes = 1536; // Умеренное увеличение для больших мешей
+		}
+		else if (meshRes > 50)
+		{
+			texRes = 1280; // Небольшое увеличение для средних мешей
+		}
 
 		// Создаем пустое изображение с форматом RGBA8
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
@@ -200,10 +211,12 @@ public static class TerrainTexturePainter
 				float h = heightRange > 0.001f ? (maxHeight - height) / heightRange : 0.5f;
 				h = Mathf.Clamp(h, 0f, 1f);
 
-				// Получаем пиксели из исходных текстур
-				Color sandColor = GetSample(sandImg, x, z, texRes);
-				Color grassColor = GetSample(grassImg, x, z, texRes);
-				Color rockColor = GetSample(rockImg, x, z, texRes);
+				// Получаем пиксели из исходных текстур с tiling для большей детализации
+				// Текстуры повторяются несколько раз по поверхности для увеличения деталей
+				float tileScale = 8.0f; // Текстура повторяется 8 раз - можно настроить
+				Color sandColor = GetSample(sandImg, x, z, texRes, tileScale);
+				Color grassColor = GetSample(grassImg, x, z, texRes, tileScale);
+				Color rockColor = GetSample(rockImg, x, z, texRes, tileScale);
 
 				Color finalColor;
 				// Плавные переходы с шириной 0.15 (как в RealWorldTexturePainter)
@@ -243,34 +256,60 @@ public static class TerrainTexturePainter
 		}
 
 		// Создаем ImageTexture из итогового изображения
+		// Используем CreateFromImage с параметрами для лучшего качества
 		var tex = ImageTexture.CreateFromImage(finalImg);
+		
+		// В Godot 4 C# фильтрация настраивается через материал
+		// ImageTexture автоматически генерирует мипмапы если включено в настройках проекта
 
 		// Создаем материал и применяем текстуру
 		StandardMaterial3D mat = new StandardMaterial3D();
 		mat.AlbedoTexture = tex;
 		mat.CullMode = BaseMaterial3D.CullModeEnum.Back;
+		// Используем стандартную линейную фильтрацию с мипмапами для лучшего качества
+		mat.TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmaps;
 
 		// Назначаем материал на MeshInstance3D
 		meshInstance.MaterialOverride = mat;
 
-		// Сохраняем изображение на диск (если указан путь)
-		if (!string.IsNullOrEmpty(savePath))
+		// Сохраняем изображение на диск
+		// Если путь не указан, используем путь по умолчанию в корне проекта
+		string finalSavePath = savePath;
+		if (string.IsNullOrEmpty(finalSavePath))
 		{
-			Error err = finalImg.SavePng(savePath);
-			if (err == Error.Ok)
-				GD.Print("Текстура сохранена: ", savePath);
-			else
-				GD.PrintErr("Ошибка при сохранении текстуры: ", savePath);
+			finalSavePath = "res://terrain_texture.png";
 		}
+		
+		Error err = finalImg.SavePng(finalSavePath);
+		if (err == Error.Ok)
+			GD.Print("Текстура сохранена: ", finalSavePath);
+		else
+			GD.PrintErr("Ошибка при сохранении текстуры: ", finalSavePath);
 
 		GD.Print("Текстура успешно применена с плавным смешиванием по высоте");
 	}
 
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам
-	private static Color GetSample(Image img, int x, int z, int texRes)
+	// Используем tiling (повторение) для увеличения детализации
+	private static Color GetSample(Image img, int x, int z, int texRes, float tileScale = 4.0f)
 	{
-		int tx = Mathf.Clamp((int)((float)x / (texRes - 1) * (img.GetWidth() - 1)), 0, img.GetWidth() - 1);
-		int tz = Mathf.Clamp((int)((float)z / (texRes - 1) * (img.GetHeight() - 1)), 0, img.GetHeight() - 1);
+		// Применяем tiling - текстура повторяется несколько раз
+		// tileScale определяет, сколько раз текстура повторяется по поверхности
+		float u = ((float)x / (texRes - 1)) * tileScale;
+		float v = ((float)z / (texRes - 1)) * tileScale;
+		
+		// Используем модуль для создания повторяющегося паттерна
+		u = u - Mathf.Floor(u);
+		v = v - Mathf.Floor(v);
+		
+		// Преобразуем в координаты текстуры
+		int tx = (int)(u * (img.GetWidth() - 1));
+		int tz = (int)(v * (img.GetHeight() - 1));
+		
+		// Ограничиваем границы
+		tx = Mathf.Clamp(tx, 0, img.GetWidth() - 1);
+		tz = Mathf.Clamp(tz, 0, img.GetHeight() - 1);
+		
 		return img.GetPixel(tx, tz);
 	}
 }
