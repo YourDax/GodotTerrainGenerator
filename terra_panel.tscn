@@ -11,7 +11,7 @@ script = ExtResource("1_ker3i")
 
 [node name="Label" type="Label" parent="."]
 layout_mode = 2
-text = "Terra Generating"
+text = "🌍 Terra Generating"
 horizontal_alignment = 1
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
@@ -134,19 +134,45 @@ script = SubResource("GDScript_8n5ej")
 visible = false
 layout_mode = 2
 
+[node name="LabelPresets" type="Label" parent="VBoxContainerRealMap"]
+layout_mode = 2
+text = "📍 Быстрый выбор места:"
+
+[node name="LocationPresets" type="OptionButton" parent="VBoxContainerRealMap"]
+layout_mode = 2
+selected = 0
+
+[node name="HSeparatorResolution" type="HSeparator" parent="VBoxContainerRealMap"]
+layout_mode = 2
+
+[node name="LabelResolutionMode" type="Label" parent="VBoxContainerRealMap"]
+layout_mode = 2
+text = "⚙️ Режим разрешения:"
+
+[node name="ResolutionMode" type="OptionButton" parent="VBoxContainerRealMap"]
+layout_mode = 2
+selected = 0
+
+[node name="HSeparatorCoords" type="HSeparator" parent="VBoxContainerRealMap"]
+layout_mode = 2
+
 [node name="HBoxContainerLeftUpLat" type="HBoxContainer" parent="VBoxContainerRealMap"]
 layout_mode = 2
 
 [node name="LeftUpLat" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerLeftUpLat"]
 layout_mode = 2
 min_value = -100.0
-step = 0.001
-value = 46.02000000000001
-custom_arrow_step = 0.001
+max_value = 100.0
+step = 0.0001
+value = 46.02
+custom_arrow_step = 0.0001
+allow_greater = true
+allow_lesser = true
 
 [node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerLeftUpLat"]
 layout_mode = 2
-text = "Лево-верх долгота"
+size_flags_horizontal = 3
+text = "Северная широта (Lat)"
 
 [node name="HBoxContainerLeftUpLng" type="HBoxContainer" parent="VBoxContainerRealMap"]
 layout_mode = 2
@@ -154,13 +180,17 @@ layout_mode = 2
 [node name="LeftUpLng" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerLeftUpLng"]
 layout_mode = 2
 min_value = -100.0
-step = 0.001
-value = 46.02000000000001
-custom_arrow_step = 0.001
+max_value = 100.0
+step = 0.0001
+value = 46.02
+custom_arrow_step = 0.0001
+allow_greater = true
+allow_lesser = true
 
 [node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerLeftUpLng"]
 layout_mode = 2
-text = "Лево-верх широта"
+size_flags_horizontal = 3
+text = "Западная долгота (Lng)"
 
 [node name="HBoxContainerRightDownLat" type="HBoxContainer" parent="VBoxContainerRealMap"]
 layout_mode = 2
@@ -168,13 +198,17 @@ layout_mode = 2
 [node name="RightDownLat" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerRightDownLat"]
 layout_mode = 2
 min_value = -100.0
-step = 0.001
+max_value = 100.0
+step = 0.0001
 value = 50.22
-custom_arrow_step = 0.001
+custom_arrow_step = 0.0001
+allow_greater = true
+allow_lesser = true
 
 [node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerRightDownLat"]
 layout_mode = 2
-text = "Право-низ долгота"
+size_flags_horizontal = 3
+text = "Южная широта (Lat)"
 
 [node name="HBoxContainerRightDownLng" type="HBoxContainer" parent="VBoxContainerRealMap"]
 layout_mode = 2
@@ -182,21 +216,31 @@ layout_mode = 2
 [node name="RightDownLng" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerRightDownLng"]
 layout_mode = 2
 min_value = -100.0
-step = 0.001
+max_value = 100.0
+step = 0.0001
 value = 50.22
-custom_arrow_step = 0.001
+custom_arrow_step = 0.0001
+allow_greater = true
+allow_lesser = true
 
 [node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerRightDownLng"]
 layout_mode = 2
-text = "Право-низ широта"
+size_flags_horizontal = 3
+text = "Восточная долгота (Lng)"
+
+[node name="HSeparator" type="HSeparator" parent="."]
+layout_mode = 2
 
 [node name="RealMapCheck" type="CheckBox" parent="."]
 layout_mode = 2
-text = "Режим реальной карты"
+text = "🗺️ Режим реальной карты"
+
+[node name="HSeparator2" type="HSeparator" parent="."]
+layout_mode = 2
 
 [node name="GenerateButton" type="Button" parent="."]
 layout_mode = 2
-text = "Создать"
+text = "✨ Создать ландшафт"
 script = SubResource("GDScript_8n5ej")
 
 [connection signal="pressed" from="GenerateButton" to="." method="_on_generate_button_pressed"]

@@ -2,44 +2,28 @@ using Godot;
 using System;
 
 [Tool]
-public static class TerrainTexturePainter
+public static class RealWorldTexturePainter
 {
 	public static void ApplyHeightTexture(
 		// Меш, на который накладываем текстуру
 		MeshInstance3D meshInstance,
-		// Минимальная высота меша
-		float minHeight,
-		// Максимальная высота меша
-		float maxHeight,
+		// Исходный массив высот (в метрах)
+		float[,] heights,
+		// Разрешение сетки (число вершин по одной оси)
+		int meshResX,
+		int meshResZ,
 		// Путь к текстуре песка
-		string sandPath,
+		string sandPath = "res://textures/sand.png",
 		// Путь к текстуре травы
-		string grassPath,
+		string grassPath = "res://textures/grass.png",
 		// Путь к текстуре камня
-		string rockPath,
-		// Путь для сохранения итоговой текстуры (опционально)
-		string savePath = null,
-		// Граница песок-трава
+		string rockPath = "res://textures/rock.png",
+		// Граница песок-трава (нормализованная высота 0-1)
 		float sandGrass = 0.35f,
-		// Граница трава-камень
-		float grassRock = 0.55f
+		// Граница трава-камень (нормализованная высота 0-1)
+		float grassRock = 0.65f
 	)
 	{
-		// Проверяем, есть ли у MeshInstance3D Mesh
-		if (meshInstance.Mesh == null)
-		{
-			GD.PrintErr("MeshInstance3D не содержит Mesh!");
-			return;
-		}
-
-		// Пробуем привести Mesh к ArrayMesh
-		ArrayMesh arrayMesh = meshInstance.Mesh as ArrayMesh;
-		if (arrayMesh == null)
-		{
-			GD.PrintErr("Mesh не является ArrayMesh!");
-			return;
-		}
-
 		// Проверка путей к текстурам
 		if (string.IsNullOrEmpty(sandPath) || string.IsNullOrEmpty(grassPath) || string.IsNullOrEmpty(rockPath))
 		{
@@ -71,45 +55,39 @@ public static class TerrainTexturePainter
 			return;
 		}
 
-		// Получаем массив вершин из первой поверхности ArrayMesh
-		var arrays = arrayMesh.SurfaceGetArrays(0);
-		Godot.Collections.Array verticesArray = (Godot.Collections.Array)arrays[(int)ArrayMesh.ArrayType.Vertex];
-		if (verticesArray == null)
+		// Проверка на пустой массив высот
+		if (heights == null || heights.GetLength(0) != meshResX || heights.GetLength(1) != meshResZ)
 		{
-			GD.PrintErr("Не удалось получить вершины из ArrayMesh!");
+			GD.PrintErr($"Массив высот не соответствует размерам! heights: {heights?.GetLength(0)}x{heights?.GetLength(1)}, expected: {meshResX}x{meshResZ}");
 			return;
 		}
 
-		// Проверка на пустой массив вершин
-		if (verticesArray.Count == 0)
+		// Находим реальные min/max высоты из исходного массива
+		float minHeight = float.MaxValue;
+		float maxHeight = float.MinValue;
+		
+		for (int z = 0; z < meshResZ; z++)
 		{
-			GD.PrintErr("Массив вершин пуст!");
-			return;
+			for (int x = 0; x < meshResX; x++)
+			{
+				float h = heights[x, z];
+				if (!float.IsNaN(h))
+				{
+					if (h < minHeight) minHeight = h;
+					if (h > maxHeight) maxHeight = h;
+				}
+			}
 		}
-
-		// Определяем размер сетки (число вершин по одной оси)
-		int meshRes = (int)Mathf.Sqrt(verticesArray.Count);
+		
+		float heightRange = maxHeight - minHeight;
+		
+		GD.Print($"🎨 RealWorldTexturePainter: minHeight={minHeight:F3}, maxHeight={maxHeight:F3}, range={heightRange:F3}");
 
 		// Разрешение итоговой текстуры
 		int texRes = 1024;
 
 		// Создаем пустое изображение с форматом RGBA8
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
-
-		// Создаем карту высот для билинейной интерполяции
-		float[,] heightMap = new float[meshRes, meshRes];
-		for (int z = 0; z < meshRes; z++)
-		{
-			for (int x = 0; x < meshRes; x++)
-			{
-				int idx = z * meshRes + x;
-				if (idx < verticesArray.Count)
-				{
-					Vector3 vert = (Vector3)verticesArray[idx];
-					heightMap[x, z] = vert.Y;
-				}
-			}
-		}
 
 		// Основной цикл по пикселям итоговой текстуры
 		for (int z = 0; z < texRes; z++)
@@ -121,26 +99,26 @@ public static class TerrainTexturePainter
 				float v = (float)z / (texRes - 1);
 
 				// Преобразуем UV в координаты сетки вершин
-				float gridX = u * (meshRes - 1);
-				float gridZ = v * (meshRes - 1);
+				float gridX = u * (meshResX - 1);
+				float gridZ = v * (meshResZ - 1);
 
-				// Билинейная интерполяция высоты для более плавных переходов
+				// Билинейная интерполяция высоты из исходного массива
 				int x0 = (int)Mathf.Floor(gridX);
 				int x1 = (int)Mathf.Ceil(gridX);
 				int z0 = (int)Mathf.Floor(gridZ);
 				int z1 = (int)Mathf.Ceil(gridZ);
 
 				// Ограничиваем границы
-				x0 = Mathf.Clamp(x0, 0, meshRes - 1);
-				x1 = Mathf.Clamp(x1, 0, meshRes - 1);
-				z0 = Mathf.Clamp(z0, 0, meshRes - 1);
-				z1 = Mathf.Clamp(z1, 0, meshRes - 1);
+				x0 = Mathf.Clamp(x0, 0, meshResX - 1);
+				x1 = Mathf.Clamp(x1, 0, meshResX - 1);
+				z0 = Mathf.Clamp(z0, 0, meshResZ - 1);
+				z1 = Mathf.Clamp(z1, 0, meshResZ - 1);
 
-				// Получаем высоты в четырех углах
-				float h00 = heightMap[x0, z0];
-				float h10 = heightMap[x1, z0];
-				float h01 = heightMap[x0, z1];
-				float h11 = heightMap[x1, z1];
+				// Получаем высоты в четырех углах из исходного массива
+				float h00 = float.IsNaN(heights[x0, z0]) ? minHeight : heights[x0, z0];
+				float h10 = float.IsNaN(heights[x1, z0]) ? minHeight : heights[x1, z0];
+				float h01 = float.IsNaN(heights[x0, z1]) ? minHeight : heights[x0, z1];
+				float h11 = float.IsNaN(heights[x1, z1]) ? minHeight : heights[x1, z1];
 
 				// Билинейная интерполяция
 				float fx = gridX - x0;
@@ -150,9 +128,12 @@ public static class TerrainTexturePainter
 				float height = Mathf.Lerp(h0, h1, fz);
 
 				// Вычисляем нормализованную высоту (0 = низ, 1 = верх)
-				float heightRange = maxHeight - minHeight;
-				float h = heightRange > 0.001f ? (maxHeight - height) / heightRange : 0.5f;
+				// Инвертируем: высокие значения -> высокий h (камень), низкие -> низкий h (песок)
+				// h = 0 для minHeight (песок), h = 1 для maxHeight (камень)
+				float h = heightRange > 0.001f ? (height - minHeight) / heightRange : 0.5f;
 				h = Mathf.Clamp(h, 0f, 1f);
+				// Если высота перевернута, инвертируем h
+				h = 1.0f - h;
 
 				// Получаем пиксели из исходных текстур
 				Color sandColor = GetSample(sandImg, x, z, texRes);
@@ -160,7 +141,7 @@ public static class TerrainTexturePainter
 				Color rockColor = GetSample(rockImg, x, z, texRes);
 
 				Color finalColor;
-				// Плавные переходы с шириной 0.15 (как в RealWorldTexturePainter)
+				// Плавные переходы с шириной 0.15
 				float sandToGrassStart = sandGrass - 0.075f;
 				float sandToGrassEnd = sandGrass + 0.075f;
 				float grassToRockStart = grassRock - 0.075f;
@@ -196,6 +177,35 @@ public static class TerrainTexturePainter
 			}
 		}
 
+		// Сохраняем текстуру в PNG для отладки (в корень проекта)
+		string debugPath = "res://real_world_terrain_texture_debug.png";
+		Error saveErr = finalImg.SavePng(debugPath);
+		if (saveErr == Error.Ok)
+		{
+			GD.Print($"🔍 Debug: Текстура сохранена для отладки: {debugPath}");
+			GD.Print($"   Размер текстуры: {texRes}x{texRes}");
+			GD.Print($"   Разрешение меша: {meshResX}x{meshResZ}");
+			GD.Print($"   Диапазон высот вершин: {minHeight:F3} - {maxHeight:F3} (range: {heightRange:F3})");
+			GD.Print($"   Границы текстур: песок->трава={sandGrass:F2}, трава->камень={grassRock:F2}");
+			GD.Print($"   Переходы: песок [{sandGrass - 0.075f:F2} - {sandGrass + 0.075f:F2}], трава [{grassRock - 0.075f:F2} - {grassRock + 0.075f:F2}]");
+			
+			// Выводим несколько примеров высот из исходного массива для отладки
+			GD.Print($"   Примеры высот из исходного массива:");
+			for (int i = 0; i < Math.Min(5, meshResX); i++)
+			{
+				for (int j = 0; j < Math.Min(5, meshResZ); j++)
+				{
+					float h = heights[i, j];
+					float normalizedH = heightRange > 0.001f ? (h - minHeight) / heightRange : 0.5f;
+					GD.Print($"     heights[{i},{j}] = {h:F3} (normalized: {normalizedH:F3})");
+				}
+			}
+		}
+		else
+		{
+			GD.PrintErr($"❌ Ошибка при сохранении текстуры для отладки: {saveErr}");
+		}
+
 		// Создаем ImageTexture из итогового изображения
 		var tex = ImageTexture.CreateFromImage(finalImg);
 
@@ -207,17 +217,7 @@ public static class TerrainTexturePainter
 		// Назначаем материал на MeshInstance3D
 		meshInstance.MaterialOverride = mat;
 
-		// Сохраняем изображение на диск (если указан путь)
-		if (!string.IsNullOrEmpty(savePath))
-		{
-			Error err = finalImg.SavePng(savePath);
-			if (err == Error.Ok)
-				GD.Print("Текстура сохранена: ", savePath);
-			else
-				GD.PrintErr("Ошибка при сохранении текстуры: ", savePath);
-		}
-
-		GD.Print("Текстура успешно применена с плавным смешиванием по высоте");
+		GD.Print("✅ RealWorldTexturePainter: Текстура успешно применена с плавным смешиванием по высоте");
 	}
 
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам
@@ -228,3 +228,4 @@ public static class TerrainTexturePainter
 		return img.GetPixel(tx, tz);
 	}
 }
+

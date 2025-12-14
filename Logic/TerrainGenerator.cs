@@ -14,7 +14,8 @@ public partial class TerrainGenerator : Node3D
 		float waterLevel,
 		string savePath,
 		bool realMapMode,
-		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng
+		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng,
+		int resolutionMode = 0
 	)
 	{
 		GD.Print("C# Generate() вызван из GDScript!");
@@ -23,7 +24,8 @@ public partial class TerrainGenerator : Node3D
 			// Асинхронный вызов - запускаем в фоне
 			_ = GenerateRealMapTerrainAsync(
 				leftuplat, leftuplng,
-				rightdownlat, rightdownlng
+				rightdownlat, rightdownlng,
+				resolutionMode
 			);
 			return;
 		}
@@ -91,14 +93,16 @@ public partial class TerrainGenerator : Node3D
 	}
 
 	private async Task GenerateRealMapTerrainAsync(
-		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng
+		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng,
+		int resolutionMode = 0
 	)
 	{
 		await RealMapTerrainGenerator.Generate(
 			this,
 			leftuplat, leftuplng,
 			rightdownlat, rightdownlng,
-			Owner
+			Owner,
+			resolutionMode
 		);
 	}
 }

@@ -13,9 +13,13 @@ public static class RealMapTerrainGenerator
 	private const float WATER_PERCENT = 0.15f;
 
 	// Параметры пакетной отправки запросов
-	private const int BATCH_SIZE = 100;
-	private const int MAX_REQUESTS = 100; // Увеличено для поддержки больших разрешений
-	private const int REQUEST_DELAY_MS = 7000;
+	private const int FIXED_RESOLUTION = 50; // Фиксированное разрешение 50x50
+	private const int MAX_POINTS_PER_REQUEST = 100; // Лимит API OpenTopoData
+	private const int MAX_REQUESTS = 25; // Максимум запросов (50x50 = 2500 точек / 100 = 25 запросов)
+	private const int REQUEST_DELAY_MS = 1000; // Задержка после успешного запроса
+	private const int RETRY_DELAY_MS = 1000; // Задержка при повторной попытке
+	private const int MAX_RETRIES = 5; // Количество повторных попыток при ошибке
+	private const int REQUEST_TIMEOUT_SECONDS = 1; // Таймаут запроса
 
 	// Диапазон нормализованных высот (в метрах)
 	private const float TARGET_MIN_HEIGHT = 0f;
@@ -28,6 +32,14 @@ public static class RealMapTerrainGenerator
 	private const float VERTICAL_SCALE = 1.0f; // Будет переопределен динамически
 	private const float HEIGHT_TO_MESH_RATIO = 0.15f; // Высоты занимают 15% от размера меша
 
+	// Режимы разрешения
+	public enum ResolutionMode
+	{
+		HighQuality = 0,    // 50x50 (25 запросов)
+		MediumQuality = 1,  // 31x31 (10 запросов)
+		Adaptive = 2        // Адаптивное
+	}
+
 	// Основной метод генерации рельефа
 	public static async Task<Node3D> Generate(
 		Node3D parent,
@@ -35,7 +47,8 @@ public static class RealMapTerrainGenerator
 		float leftUpLng,
 		float rightDownLat,
 		float rightDownLng,
-		Node owner
+		Node owner,
+		int resolutionMode = 0
 	)
 	{
 		// Логирование границ
@@ -43,7 +56,7 @@ public static class RealMapTerrainGenerator
 		GD.Print($"Input bounds raw: NW({leftUpLat.ToString(CultureInfo.InvariantCulture)},{leftUpLng.ToString(CultureInfo.InvariantCulture)}) SE({rightDownLat.ToString(CultureInfo.InvariantCulture)},{rightDownLng.ToString(CultureInfo.InvariantCulture)})");
 
 		// Загружаем матрицу высот
-		float[,] heights = await RequestHeights(leftUpLat, leftUpLng, rightDownLat, rightDownLng);
+		float[,] heights = await RequestHeights(leftUpLat, leftUpLng, rightDownLat, rightDownLng, resolutionMode);
 
 		// Проверка на ошибки
 		if (heights == null)
@@ -58,8 +71,9 @@ public static class RealMapTerrainGenerator
 		// Заполняем отсутствующие значения
 		FillMissingHeights(heights);
 
-		// Строим меш на основе высот
-		Mesh mesh = BuildCenteredMesh(heights, leftUpLat, leftUpLng, rightDownLat, rightDownLng);
+		// Строим меш на основе высот и получаем размер меша
+		float meshSizeUnits;
+		Mesh mesh = BuildCenteredMesh(heights, leftUpLat, leftUpLng, rightDownLat, rightDownLng, out meshSizeUnits);
 
 		// Проверка валидности меша
 		if (mesh == null || mesh.GetSurfaceCount() == 0)
@@ -84,55 +98,24 @@ public static class RealMapTerrainGenerator
 
 		GD.Print("✅ MeshInstance добавлен в сцену");
 
-		// Получаем min/max высот (в метрах)
-		GetMinMax(heights, out float minH, out float maxH);
+		// Получаем размеры сетки из размеров массива высот
+		int meshResX = heights.GetLength(0);
+		int meshResZ = heights.GetLength(1);
+		
+		GD.Print($"🎨 Applying textures: mesh resolution {meshResX}x{meshResZ}");
 
-		// Вычисляем размер меша для правильного масштабирования высот
-		// Используем ту же логику, что и в BuildCenteredMesh
-		float meanLat = (leftUpLat + rightDownLat) * 0.5f;
-		meanLat = Mathf.DegToRad(meanLat);
-		const float METERS_PER_DEGREE_LAT = 111320f;
-		float metersPerDegLon = Mathf.Cos(meanLat) * METERS_PER_DEGREE_LAT;
-		
-		float north = Math.Max(leftUpLat, rightDownLat);
-		float south = Math.Min(leftUpLat, rightDownLat);
-		float west = Math.Min(leftUpLng, rightDownLng);
-		float east = Math.Max(leftUpLng, rightDownLng);
-		
-		float widthMeters = Math.Abs(east - west) * metersPerDegLon;
-		float depthMeters = Math.Abs(north - south) * METERS_PER_DEGREE_LAT;
-		float desiredSize = Math.Max(widthMeters, depthMeters);
-		float calculatedSizeUnits = desiredSize * METERS_TO_UNITS;
-		calculatedSizeUnits = Mathf.Clamp(calculatedSizeUnits, MIN_MESH_UNITS, MAX_MESH_UNITS);
-		if (float.IsNaN(calculatedSizeUnits) || calculatedSizeUnits <= 0f) calculatedSizeUnits = MIN_MESH_UNITS;
-		
-		// Масштабирование под максимум (как в BuildCenteredMesh)
-		float targetUnits = MAX_MESH_UNITS;
-		float scaleX = targetUnits / calculatedSizeUnits;
-		float scaleZ = targetUnits / calculatedSizeUnits;
-		float finalScale = Mathf.Min(Mathf.Min(scaleX, scaleZ), 1f);
-		float finalSizeUnits = calculatedSizeUnits * finalScale;
-
-		// Вычисляем масштабированные min/max для текстурирования
-		// Используем тот же finalSizeUnits, что был рассчитан выше
-		float heightRange2 = maxH - minH;
-		float targetMaxHeight2 = finalSizeUnits * HEIGHT_TO_MESH_RATIO;
-		float heightScale2 = heightRange2 > 0.001f ? targetMaxHeight2 / heightRange2 : 1f;
-		
-		float meshMinHeight = 0f; // Минимальная высота в меше всегда 0 (относительно minH)
-		float meshMaxHeight = heightRange2 * heightScale2; // Максимальная высота в меше
-
-		// Накладываем текстуры по высоте (используем масштабированные значения)
-		TerrainTexturePainter.ApplyHeightTexture(
+		// Накладываем текстуры по высоте используя специальный класс для реального мира
+		// Передаем исходный массив высот напрямую, чтобы избежать проблем с порядком вершин
+		RealWorldTexturePainter.ApplyHeightTexture(
 			meshInstance,
-			meshMinHeight,
-			meshMaxHeight,
+			heights,
+			meshResX,
+			meshResZ,
 			"res://textures/sand.png",
 			"res://textures/grass.png",
 			"res://textures/rock.png",
-			null,
 			0.35f,
-			0.55f
+			0.65f
 		);
 
 		GD.Print("✅ Текстуры применены");
@@ -146,7 +129,8 @@ public static class RealMapTerrainGenerator
 		float leftUpLat,
 		float leftUpLng,
 		float rightDownLat,
-		float rightDownLng
+		float rightDownLng,
+		int resolutionMode = 0
 	)
 	{
 		// Нормализуем координаты в N/S/W/E
@@ -162,15 +146,38 @@ public static class RealMapTerrainGenerator
 		float dLat = Math.Abs(north - south);
 		float dLon = Math.Abs(east - west);
 
-		// Подбираем разрешение сетки в зависимости от площади
-		int resolution =
-			(dLat < 0.01f && dLon < 0.01f) ? 32 :
-			(dLat < 0.05f && dLon < 0.05f) ? 24 :
-			(dLat < 0.2f && dLon < 0.2f) ? 16 : 10;
+		// Определяем разрешение в зависимости от выбранного режима
+		int resolution;
+		ResolutionMode mode = (ResolutionMode)resolutionMode;
+		
+		switch (mode)
+		{
+			case ResolutionMode.HighQuality:
+				resolution = 50; // 50x50 = 2500 точек = 25 запросов
+				GD.Print($"🌍 Режим: Высокое качество (50x50, ~25 запросов, дольше по времени)");
+				break;
+			case ResolutionMode.MediumQuality:
+				resolution = 31; // 31x31 = 961 точка = 10 запросов
+				GD.Print($"🌍 Режим: Среднее качество (31x31, ~10 запросов, быстрее)");
+				break;
+			case ResolutionMode.Adaptive:
+			default:
+				// Адаптивное разрешение в зависимости от размера области
+				if (dLat < 0.01f && dLon < 0.01f)
+					resolution = 50; // Маленькая область - высокое разрешение
+				else if (dLat < 0.05f && dLon < 0.05f)
+					resolution = 40; // Средняя область
+				else if (dLat < 0.2f && dLon < 0.2f)
+					resolution = 31; // Большая область - среднее разрешение
+				else
+					resolution = 25; // Очень большая область - низкое разрешение
+				GD.Print($"🌍 Режим: Адаптивное (разрешение {resolution}x{resolution} в зависимости от размера области)");
+				break;
+		}
 
-		GD.Print($"🌍 Adaptive resolution: {resolution}x{resolution} (dLat={dLat:F6}, dLon={dLon:F6})");
+		GD.Print($"🌍 Resolution: {resolution}x{resolution} (dLat={dLat:F6}, dLon={dLon:F6})");
 
-		// Массив высот
+		// Массив высот (будет пересоздан, если разрешение изменится)
 		float[,] data = new float[resolution, resolution];
 
 		// Формируем список координат
@@ -190,20 +197,60 @@ public static class RealMapTerrainGenerator
 
 		// HttpClient для запроса
 		using var http = new System.Net.Http.HttpClient();
-		http.Timeout = TimeSpan.FromSeconds(30);
+		http.Timeout = TimeSpan.FromSeconds(REQUEST_TIMEOUT_SECONDS);
 		http.DefaultRequestHeaders.Add("User-Agent", "GodotTerrainPlugin/1.0");
 
 		int idx = 0;
 		int reqCount = 0;
 
-		// Отправляем запросы пакетами
+		// API OpenTopoData ограничивает количество точек в одном запросе до 100
+		// Вычисляем размер батча и количество запросов
+		int totalPoints = points.Count;
+		int batchSize = MAX_POINTS_PER_REQUEST;
+		
 		// Вычисляем необходимое количество запросов
-		int requiredRequests = (int)Math.Ceiling(points.Count / (float)BATCH_SIZE);
+		int requiredRequests = (int)Math.Ceiling(totalPoints / (float)batchSize);
+		
+		// Проверяем, не превышаем ли лимит запросов
+		if (requiredRequests > MAX_REQUESTS)
+		{
+			GD.PrintErr($"⚠️ ВНИМАНИЕ: Требуется {requiredRequests} запросов, но максимум {MAX_REQUESTS}!");
+			GD.PrintErr($"⚠️ Это означает, что разрешение {resolution}x{resolution} слишком большое.");
+			GD.PrintErr($"⚠️ Уменьшаем разрешение до {Mathf.Sqrt(MAX_REQUESTS * batchSize):F0}x{Mathf.Sqrt(MAX_REQUESTS * batchSize):F0}");
+			
+			// Пересчитываем с меньшим разрешением
+			int newResolution = (int)Mathf.Sqrt(MAX_REQUESTS * batchSize);
+			// Округляем вниз
+			newResolution = (newResolution / 2) * 2;
+			
+			// Пересоздаем точки с новым разрешением
+			points.Clear();
+			for (int z = 0; z < newResolution; z++)
+			{
+				float lat = Mathf.Lerp(north, south, (float)z / (newResolution - 1));
+				for (int x = 0; x < newResolution; x++)
+				{
+					float lng = Mathf.Lerp(west, east, (float)x / (newResolution - 1));
+					points.Add(string.Format(CultureInfo.InvariantCulture, "{0},{1}", lat, lng));
+				}
+			}
+			
+			// Пересоздаем массив данных
+			data = new float[newResolution, newResolution];
+			resolution = newResolution;
+			totalPoints = points.Count;
+			requiredRequests = (int)Math.Ceiling(totalPoints / (float)batchSize);
+			
+			GD.Print($"✅ Новое разрешение: {resolution}x{resolution} ({totalPoints} точек, {requiredRequests} запросов)");
+		}
+		
 		int maxAllowedRequests = Math.Min(MAX_REQUESTS, requiredRequests);
+		
+		GD.Print($"📦 Batch size: {batchSize} points per request (total: {totalPoints} points, {requiredRequests} requests, max {maxAllowedRequests} allowed)");
 		
 		while (idx < points.Count && reqCount < maxAllowedRequests)
 		{
-			int take = Math.Min(BATCH_SIZE, points.Count - idx);
+			int take = Math.Min(batchSize, points.Count - idx);
 			var batch = points.GetRange(idx, take);
 
 			string url = API_URL + string.Join("|", batch);
@@ -211,33 +258,98 @@ public static class RealMapTerrainGenerator
 			reqCount++;
 
 			// Логируем параметры запроса
-			GD.Print($"📡 Запрос {reqCount}/{Math.Ceiling(points.Count / (float)BATCH_SIZE)} ({take} точек)");
+			GD.Print($"📡 Запрос {reqCount}/{maxAllowedRequests} ({take} точек, осталось {points.Count - idx} точек)");
 			GD.Print($"🔹 URL (начало): {url.Substring(0, Math.Min(200, url.Length))}");
 			GD.Print($"🔹 Примеры точек: first={batch[0]} last={batch[batch.Count - 1]}");
 
-			System.Net.Http.HttpResponseMessage resp;
+			// Пытаемся выполнить запрос с повторными попытками
+			bool success = false;
+			int retryCount = 0;
+			System.Net.Http.HttpResponseMessage resp = null;
 
-			try
+			while (!success && retryCount < MAX_RETRIES)
 			{
-				// Выполняем GET запрос
-				resp = await http.GetAsync(url);
+				try
+				{
+					// Выполняем GET запрос
+					resp = await http.GetAsync(url);
+					
+					// Проверка статуса
+					if (resp.IsSuccessStatusCode)
+					{
+						success = true;
+					}
+					else
+					{
+						GD.PrintErr($"❌ HTTP {resp.StatusCode} on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}");
+						retryCount++;
+						if (retryCount < MAX_RETRIES)
+						{
+							await Task.Delay(RETRY_DELAY_MS * (retryCount + 1)); // Увеличиваем задержку с каждой попыткой
+						}
+					}
+				}
+				catch (System.Net.Http.HttpRequestException ex)
+				{
+					// Ошибка сети
+					GD.PrintErr($"❌ Network error on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}: {ex.Message}");
+					retryCount++;
+					if (retryCount < MAX_RETRIES)
+					{
+						await Task.Delay(RETRY_DELAY_MS * (retryCount + 1)); // Увеличиваем задержку с каждой попыткой
+					}
+				}
+				catch (TaskCanceledException ex)
+				{
+					// Таймаут
+					GD.PrintErr($"⏱️ Timeout on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}: {ex.Message}");
+					retryCount++;
+					if (retryCount < MAX_RETRIES)
+					{
+						GD.Print($"🔄 Retrying request #{reqCount} in {RETRY_DELAY_MS * (retryCount + 1) / 1000.0} seconds...");
+						await Task.Delay(RETRY_DELAY_MS * (retryCount + 1)); // Увеличиваем задержку с каждой попыткой
+					}
+				}
+				catch (Exception ex)
+				{
+					// Другие ошибки
+					GD.PrintErr($"❌ Unexpected error on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}: {ex.Message}");
+					retryCount++;
+					if (retryCount < MAX_RETRIES)
+					{
+						await Task.Delay(RETRY_DELAY_MS * (retryCount + 1));
+					}
+				}
 			}
-			catch (Exception ex)
+
+			// Если все попытки неудачны, пропускаем этот батч
+			if (!success || resp == null)
 			{
-				// Ошибка сети
-				GD.PrintErr($"❌ Network error on request #{reqCount}: {ex.Message}");
+				GD.PrintErr($"❌ Failed to load batch {reqCount} after {MAX_RETRIES} attempts. Skipping {take} points.");
+				// Заполняем пропущенные точки NaN
+				for (int i = 0; i < take; i++)
+				{
+					int flat = idx + i;
+					if (flat < resolution * resolution)
+					{
+						int x = flat % resolution;
+						int z = flat / resolution;
+						data[x, z] = float.NaN;
+					}
+				}
 				idx += take;
-				await Task.Delay(REQUEST_DELAY_MS);
+				await Task.Delay(RETRY_DELAY_MS);
 				continue;
 			}
 
-			// Проверка статуса
-			if (!resp.IsSuccessStatusCode)
+			// Успешный запрос - обрабатываем ответ
+			if (retryCount > 0)
 			{
-				GD.PrintErr($"❌ HTTP {resp.StatusCode} on request #{reqCount}");
-				idx += take;
-				await Task.Delay(REQUEST_DELAY_MS);
-				continue;
+				GD.Print($"✅ Request #{reqCount} succeeded after {retryCount + 1} attempts");
+			}
+			else
+			{
+				GD.Print($"✅ Request #{reqCount} succeeded");
 			}
 
 			// Чтение JSON
@@ -311,7 +423,12 @@ public static class RealMapTerrainGenerator
 			// Продвигаем индекс
 			idx += take;
 
-			await Task.Delay(REQUEST_DELAY_MS);
+			// Пауза после успешного запроса перед следующим
+			if (idx < points.Count && reqCount < maxAllowedRequests)
+			{
+				GD.Print($"⏸️ Pausing {REQUEST_DELAY_MS / 1000.0} seconds before next request...");
+				await Task.Delay(REQUEST_DELAY_MS);
+			}
 		}
 
 		// Проверка на неполную загрузку данных
@@ -390,7 +507,7 @@ public static class RealMapTerrainGenerator
 	}
 
 	// Построение меша на основе матрицы высот
-	private static Mesh BuildCenteredMesh(float[,] heights, float leftUpLat, float leftUpLng, float rightDownLat, float rightDownLng)
+	private static Mesh BuildCenteredMesh(float[,] heights, float leftUpLat, float leftUpLng, float rightDownLat, float rightDownLng, out float sizeUnits)
 	{
 		int resX = heights.GetLength(0);
 		int resZ = heights.GetLength(1);
@@ -413,7 +530,7 @@ public static class RealMapTerrainGenerator
 
 		// Вычисляем итоговый размер меша в юнитах Godot
 		float desiredSize = Math.Max(widthMeters, depthMeters);
-		float sizeUnits = desiredSize * METERS_TO_UNITS;
+		sizeUnits = desiredSize * METERS_TO_UNITS;
 		sizeUnits = Mathf.Clamp(sizeUnits, MIN_MESH_UNITS, MAX_MESH_UNITS);
 
 		if (float.IsNaN(sizeUnits) || sizeUnits <= 0f) sizeUnits = MIN_MESH_UNITS;
@@ -523,6 +640,7 @@ public static class RealMapTerrainGenerator
 		// Генерируем нормали
 		st.GenerateNormals();
 
+		// Возвращаем меш и размер
 		return st.Commit();
 	}
 

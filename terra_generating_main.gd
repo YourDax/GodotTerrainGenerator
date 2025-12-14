@@ -16,7 +16,7 @@ func _exit_tree():
 	panel.free()
 
 func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_mode,
-		leftuplat, leftuplng, rightdownlat, rightdownlng):
+		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode):
 	var selection = get_editor_interface().get_selection()
 	var selected_nodes = selection.get_selected_nodes()
 
@@ -52,7 +52,8 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 			water_level,
 			texture_path,
 			real_map_mode,
-			leftuplat, leftuplng, rightdownlat, rightdownlng
+			leftuplat, leftuplng, rightdownlat, rightdownlng,
+			resolution_mode
 		)
 	else:
 		push_error("Узел TerrainGenerator не содержит метод Generate!")
