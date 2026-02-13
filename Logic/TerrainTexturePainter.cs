@@ -22,7 +22,15 @@ public static class TerrainTexturePainter
 		// Граница песок-трава
 		float sandGrass = 0.35f,
 		// Граница трава-камень
-		float grassRock = 0.55f
+		float grassRock = 0.55f,
+		// Размер карты по X (для расчета разрешения текстуры)
+		int mapSizeX = 50,
+		// Размер карты по Z (для расчета разрешения текстуры)
+		int mapSizeZ = 50,
+		// Режим генерации текстур: 0 = по высоте, 1 = камень на склонах
+		int textureMode = 0,
+		// Плавность перехода на склонах (0.0 = резкий, 1.0 = плавный)
+		float slopeBlend = 0.5f
 	)
 	{
 		// Проверяем, есть ли у MeshInstance3D Mesh
@@ -152,18 +160,34 @@ public static class TerrainTexturePainter
 		}
 
 		// Разрешение итоговой текстуры
-		// Используем разумное разрешение для баланса между качеством и производительностью
+		// Рассчитываем на основе размера карты для лучшего качества на больших картах
+		// Используем формулу: базовое разрешение + дополнительное разрешение в зависимости от размера
+		int maxMapSize = Mathf.Max(mapSizeX, mapSizeZ);
 		int texRes = 1024; // Базовое разрешение
 		
-		// Для больших мешей немного увеличиваем, но не слишком сильно
-		if (meshRes > 80)
+		// Увеличиваем разрешение пропорционально размеру карты
+		if (maxMapSize > 500)
 		{
-			texRes = 1536; // Умеренное увеличение для больших мешей
+			texRes = 4096; // Максимальное разрешение для очень больших карт
 		}
-		else if (meshRes > 50)
+		else if (maxMapSize > 300)
 		{
-			texRes = 1280; // Небольшое увеличение для средних мешей
+			texRes = 3072; // Высокое разрешение для больших карт
 		}
+		else if (maxMapSize > 200)
+		{
+			texRes = 2048; // Средне-высокое разрешение
+		}
+		else if (maxMapSize > 100)
+		{
+			texRes = 1536; // Среднее разрешение
+		}
+		else if (maxMapSize > 50)
+		{
+			texRes = 1280; // Небольшое увеличение для средних карт
+		}
+		
+		GD.Print($"📐 Размер карты: {mapSizeX}x{mapSizeZ}, Разрешение текстуры: {texRes}x{texRes}");
 
 		// Создаем пустое изображение с форматом RGBA8
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
@@ -212,42 +236,204 @@ public static class TerrainTexturePainter
 				h = Mathf.Clamp(h, 0f, 1f);
 
 				// Получаем пиксели из исходных текстур с tiling для большей детализации
-				// Текстуры повторяются несколько раз по поверхности для увеличения деталей
-				float tileScale = 8.0f; // Текстура повторяется 8 раз - можно настроить
+				// Рассчитываем tileScale в зависимости от размера карты для лучшей детализации
+				// Для больших карт увеличиваем количество повторений текстуры
+				float tileScale = 4.0f; // Базовое количество повторений
+				if (maxMapSize > 500)
+				{
+					tileScale = 16.0f; // Много повторений для очень больших карт
+				}
+				else if (maxMapSize > 300)
+				{
+					tileScale = 12.0f; // Много повторений для больших карт
+				}
+				else if (maxMapSize > 200)
+				{
+					tileScale = 10.0f; // Средне-много повторений
+				}
+				else if (maxMapSize > 100)
+				{
+					tileScale = 8.0f; // Среднее количество повторений
+				}
+				else if (maxMapSize > 50)
+				{
+					tileScale = 6.0f; // Небольшое увеличение для средних карт
+				}
+				
 				Color sandColor = GetSample(sandImg, x, z, texRes, tileScale);
 				Color grassColor = GetSample(grassImg, x, z, texRes, tileScale);
 				Color rockColor = GetSample(rockImg, x, z, texRes, tileScale);
 
 				Color finalColor;
-				// Плавные переходы с шириной 0.15 (как в RealWorldTexturePainter)
-				float sandToGrassStart = sandGrass - 0.075f;
-				float sandToGrassEnd = sandGrass + 0.075f;
-				float grassToRockStart = grassRock - 0.075f;
-				float grassToRockEnd = grassRock + 0.075f;
+				
+				if (textureMode == 0)
+				{
+					// Режим 0: По высоте (песок → трава → камень)
+					// Плавные переходы с шириной 0.15 (как в RealWorldTexturePainter)
+					float sandToGrassStart = sandGrass - 0.075f;
+					float sandToGrassEnd = sandGrass + 0.075f;
+					float grassToRockStart = grassRock - 0.075f;
+					float grassToRockEnd = grassRock + 0.075f;
 
-				// --- Плавные зоны перехода по высоте ---
-				// Ниже sandToGrassStart — чистый песок
-				if (h < sandToGrassStart)
-					finalColor = sandColor;
-				// Между sandToGrassStart и sandToGrassEnd — переход песок -> трава
-				else if (h < sandToGrassEnd)
-				{
-					float t = Mathf.InverseLerp(sandToGrassStart, sandToGrassEnd, h);
-					finalColor = sandColor.Lerp(grassColor, t);
+					// --- Плавные зоны перехода по высоте ---
+					// Ниже sandToGrassStart — чистый песок
+					if (h < sandToGrassStart)
+						finalColor = sandColor;
+					// Между sandToGrassStart и sandToGrassEnd — переход песок -> трава
+					else if (h < sandToGrassEnd)
+					{
+						float t = Mathf.InverseLerp(sandToGrassStart, sandToGrassEnd, h);
+						finalColor = sandColor.Lerp(grassColor, t);
+					}
+					// Между sandToGrassEnd и grassToRockStart — чистая трава
+					else if (h < grassToRockStart)
+						finalColor = grassColor;
+					// Между grassToRockStart и grassToRockEnd — переход трава -> камень
+					else if (h < grassToRockEnd)
+					{
+						float t = Mathf.InverseLerp(grassToRockStart, grassToRockEnd, h);
+						finalColor = grassColor.Lerp(rockColor, t);
+					}
+					// Выше grassToRockEnd — чистый камень
+					else
+						finalColor = rockColor;
 				}
-				// Между sandToGrassEnd и grassToRockStart — чистая трава
-				else if (h < grassToRockStart)
-					finalColor = grassColor;
-				// Между grassToRockStart и grassToRockEnd — переход трава -> камень
-				else if (h < grassToRockEnd)
-				{
-					float t = Mathf.InverseLerp(grassToRockStart, grassToRockEnd, h);
-					finalColor = grassColor.Lerp(rockColor, t);
-				}
-				// Выше grassToRockEnd — чистый камень
 				else
 				{
-					finalColor = rockColor;
+					// Режим 1: Камень только на склонах гор
+					// Вычисляем градиент высоты для определения склонов
+					// Используем усреднение по большей области для более плавного результата
+					
+					float gradX = 0.0f, gradZ = 0.0f;
+					float gradXSum = 0.0f, gradZSum = 0.0f;
+					int gradCount = 0;
+					
+					// Вычисляем градиент, усредняя по области 3x3 для более плавного результата
+					for (int dz = -1; dz <= 1; dz++)
+					{
+						for (int dx = -1; dx <= 1; dx++)
+						{
+							int nx0 = Mathf.Clamp(x0 + dx, 0, meshRes - 1);
+							int nx1 = Mathf.Clamp(x1 + dx, 0, meshRes - 1);
+							int nz0 = Mathf.Clamp(z0 + dz, 0, meshRes - 1);
+							int nz1 = Mathf.Clamp(z1 + dz, 0, meshRes - 1);
+							
+							// Вычисляем высоту в этой точке
+							float nh00 = heightMap[nx0, nz0];
+							float nh10 = heightMap[nx1, nz0];
+							float nh01 = heightMap[nx0, nz1];
+							float nh11 = heightMap[nx1, nz1];
+							
+							float nh0 = Mathf.Lerp(nh00, nh10, fx);
+							float nh1 = Mathf.Lerp(nh01, nh11, fx);
+							float nHeight = Mathf.Lerp(nh0, nh1, fz);
+							
+							// Вычисляем градиент по X для этой точки
+							if (nx0 > 0 && nx1 < meshRes - 1)
+							{
+								float hLeft = heightMap[nx0 - 1, nz0];
+								float hRight = heightMap[Mathf.Min(nx1 + 1, meshRes - 1), nz0];
+								gradXSum += Mathf.Abs(hRight - hLeft);
+								gradCount++;
+							}
+							
+							// Вычисляем градиент по Z для этой точки
+							if (nz0 > 0 && nz1 < meshRes - 1)
+							{
+								float hUp = heightMap[nx0, nz0 - 1];
+								float hDown = heightMap[nx0, Mathf.Min(nz1 + 1, meshRes - 1)];
+								gradZSum += Mathf.Abs(hDown - hUp);
+							}
+						}
+					}
+					
+					// Усредняем градиенты
+					if (gradCount > 0)
+					{
+						gradX = gradXSum / gradCount;
+						gradZ = gradZSum / gradCount;
+					}
+					else
+					{
+						// Fallback на простое вычисление, если усреднение не удалось
+						if (x0 > 0 && x1 < meshRes - 1)
+						{
+							float hLeft = Mathf.Lerp(heightMap[x0 - 1, z0], heightMap[x0 - 1, z1], fz);
+							float hRight = Mathf.Lerp(heightMap[x1 + 1, z0], heightMap[x1 + 1, z1], fz);
+							gradX = Mathf.Abs(hRight - hLeft);
+						}
+						if (z0 > 0 && z1 < meshRes - 1)
+						{
+							float hUp = Mathf.Lerp(heightMap[x0, z0 - 1], heightMap[Mathf.Min(x1, meshRes - 1), z0 - 1], fx);
+							float hDown = Mathf.Lerp(heightMap[x0, z1 + 1], heightMap[Mathf.Min(x1, meshRes - 1), z1 + 1], fx);
+							gradZ = Mathf.Abs(hDown - hUp);
+						}
+					}
+					
+					// Вычисляем общий градиент (крутизну склона)
+					float slope = Mathf.Sqrt(gradX * gradX + gradZ * gradZ);
+					
+					// Нормализуем градиент относительно диапазона высот
+					// Используем уже объявленную переменную heightRange
+					float normalizedSlope = heightRange > 0.001f ? slope / heightRange : 0.0f;
+					
+					// Порог для определения склона (настраиваемый) - понижен для лучшей чувствительности
+					float slopeThreshold = 0.03f; // 3% от диапазона высот - еще более чувствительный
+					
+					// Песок-трава по высоте (как обычно)
+					float sandToGrassStart = sandGrass - 0.075f;
+					float sandToGrassEnd = sandGrass + 0.075f;
+					
+					// Если это низкая высота (песок), не применяем камень даже на склонах
+					if (h < sandToGrassEnd)
+					{
+						if (h < sandToGrassStart)
+							finalColor = sandColor;
+						else
+						{
+							float t = Mathf.InverseLerp(sandToGrassStart, sandToGrassEnd, h);
+							finalColor = sandColor.Lerp(grassColor, t);
+						}
+					}
+					else
+					{
+					// На средних и высоких высотах применяем камень только на склонах
+					// Используем плавное смешивание без резкого порога для устранения квадратов
+					float minSlope = 0.0f; // Начинаем с нуля для плавного перехода
+					float maxSlope = slopeThreshold + 0.15f; // Расширенная зона для более плавного перехода
+					
+					// Вычисляем фактор склона с плавным переходом (без резкого порога)
+					float slopeFactor = 0.0f;
+					if (normalizedSlope > minSlope)
+					{
+						if (normalizedSlope >= maxSlope)
+							slopeFactor = 1.0f;
+						else
+							slopeFactor = Mathf.Clamp(normalizedSlope / maxSlope, 0.0f, 1.0f);
+					}
+					
+					// Используем параметр slopeBlend для настройки плавности перехода
+					// slopeBlend = 0.0 -> более резкий переход (степень 0.2)
+					// slopeBlend = 1.0 -> очень плавный переход (степень 2.5)
+					float blendPower = Mathf.Lerp(0.2f, 2.5f, slopeBlend);
+					float rockAmount = Mathf.Pow(slopeFactor, blendPower);
+					
+					// Минимальное количество камня на склонах зависит от плавности
+					// При резком переходе (slopeBlend = 0) минимум выше, при плавном (slopeBlend = 1) ниже
+					float minRockAmount = Mathf.Lerp(0.5f, 0.1f, slopeBlend);
+					
+					// Применяем минимальное количество только если есть хоть какой-то склон
+					if (slopeFactor > 0.01f)
+					{
+						rockAmount = Mathf.Max(rockAmount, minRockAmount * slopeFactor);
+					}
+					
+					// Ограничиваем максимум до 1.0
+					rockAmount = Mathf.Clamp(rockAmount, 0.0f, 1.0f);
+					
+					// Плавное смешивание травы с камнем (всегда смешиваем, но на ровных участках rockAmount = 0)
+					finalColor = grassColor.Lerp(rockColor, rockAmount);
+					}
 				}
 
 				// Устанавливаем рассчитанный цвет в итоговое изображение
@@ -291,6 +477,7 @@ public static class TerrainTexturePainter
 
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам
 	// Используем tiling (повторение) для увеличения детализации
+	// Использует билинейную интерполяцию для плавных переходов и скрытия швов
 	private static Color GetSample(Image img, int x, int z, int texRes, float tileScale = 4.0f)
 	{
 		// Применяем tiling - текстура повторяется несколько раз
@@ -302,14 +489,47 @@ public static class TerrainTexturePainter
 		u = u - Mathf.Floor(u);
 		v = v - Mathf.Floor(v);
 		
-		// Преобразуем в координаты текстуры
-		int tx = (int)(u * (img.GetWidth() - 1));
-		int tz = (int)(v * (img.GetHeight() - 1));
+		// Преобразуем в координаты текстуры (0..1)
+		float texU = u;
+		float texV = v;
 		
-		// Ограничиваем границы
-		tx = Mathf.Clamp(tx, 0, img.GetWidth() - 1);
-		tz = Mathf.Clamp(tz, 0, img.GetHeight() - 1);
+		// Преобразуем в пиксельные координаты текстуры
+		float pixelU = texU * (img.GetWidth() - 1);
+		float pixelV = texV * (img.GetHeight() - 1);
 		
-		return img.GetPixel(tx, tz);
+		// Получаем целочисленные координаты для билинейной интерполяции
+		int tx0 = (int)Mathf.Floor(pixelU);
+		int tx1 = tx0 + 1;
+		int tz0 = (int)Mathf.Floor(pixelV);
+		int tz1 = tz0 + 1;
+		
+		// Ограничиваем границы с учетом зацикливания (tiling)
+		tx0 = tx0 % img.GetWidth();
+		tx1 = tx1 % img.GetWidth();
+		tz0 = tz0 % img.GetHeight();
+		tz1 = tz1 % img.GetHeight();
+		
+		// Обрабатываем отрицательные значения
+		if (tx0 < 0) tx0 += img.GetWidth();
+		if (tx1 < 0) tx1 += img.GetWidth();
+		if (tz0 < 0) tz0 += img.GetHeight();
+		if (tz1 < 0) tz1 += img.GetHeight();
+		
+		// Получаем цвета в четырех углах
+		Color c00 = img.GetPixel(tx0, tz0);
+		Color c10 = img.GetPixel(tx1, tz0);
+		Color c01 = img.GetPixel(tx0, tz1);
+		Color c11 = img.GetPixel(tx1, tz1);
+		
+		// Вычисляем дробные части для интерполяции
+		float fx = pixelU - Mathf.Floor(pixelU);
+		float fz = pixelV - Mathf.Floor(pixelV);
+		
+		// Билинейная интерполяция для плавного перехода
+		Color c0 = c00.Lerp(c10, fx);
+		Color c1 = c01.Lerp(c11, fx);
+		Color finalColor = c0.Lerp(c1, fz);
+		
+		return finalColor;
 	}
 }

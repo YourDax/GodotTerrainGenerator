@@ -84,19 +84,33 @@ public static class RealWorldTexturePainter
 		GD.Print($"🎨 RealWorldTexturePainter: minHeight={minHeight:F3}, maxHeight={maxHeight:F3}, range={heightRange:F3}");
 
 		// Разрешение итоговой текстуры
-		// Используем разумное разрешение для баланса между качеством и производительностью
+		// Рассчитываем на основе размера меша для лучшего качества на больших картах
+		int maxRes = Math.Max(meshResX, meshResZ);
 		int texRes = 1024; // Базовое разрешение
 		
-		// Для больших мешей немного увеличиваем, но не слишком сильно
-		int maxRes = Math.Max(meshResX, meshResZ);
+		// Увеличиваем разрешение пропорционально размеру меша
 		if (maxRes > 80)
 		{
-			texRes = 1536; // Умеренное увеличение для больших мешей
+			texRes = 4096; // Максимальное разрешение для очень больших мешей
 		}
-		else if (maxRes > 50)
+		else if (maxRes > 60)
+		{
+			texRes = 3072; // Высокое разрешение для больших мешей
+		}
+		else if (maxRes > 40)
+		{
+			texRes = 2048; // Средне-высокое разрешение
+		}
+		else if (maxRes > 30)
+		{
+			texRes = 1536; // Среднее разрешение
+		}
+		else if (maxRes > 20)
 		{
 			texRes = 1280; // Небольшое увеличение для средних мешей
 		}
+		
+		GD.Print($"📐 Размер меша: {meshResX}x{meshResZ}, Разрешение текстуры: {texRes}x{texRes}");
 
 		// Создаем пустое изображение с форматом RGBA8
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
@@ -148,8 +162,30 @@ public static class RealWorldTexturePainter
 				h = 1.0f - h;
 
 				// Получаем пиксели из исходных текстур с tiling для большей детализации
-				// Текстуры повторяются несколько раз по поверхности для увеличения деталей
-				float tileScale = 8.0f; // Текстура повторяется 8 раз - можно настроить
+				// Рассчитываем tileScale в зависимости от размера меша для лучшей детализации
+				// Для больших мешей увеличиваем количество повторений текстуры
+				float tileScale = 4.0f; // Базовое количество повторений
+				if (maxRes > 80)
+				{
+					tileScale = 16.0f; // Много повторений для очень больших мешей
+				}
+				else if (maxRes > 60)
+				{
+					tileScale = 12.0f; // Много повторений для больших мешей
+				}
+				else if (maxRes > 40)
+				{
+					tileScale = 10.0f; // Средне-много повторений
+				}
+				else if (maxRes > 30)
+				{
+					tileScale = 8.0f; // Среднее количество повторений
+				}
+				else if (maxRes > 20)
+				{
+					tileScale = 6.0f; // Небольшое увеличение для средних мешей
+				}
+				
 				Color sandColor = GetSample(sandImg, x, z, texRes, tileScale);
 				Color grassColor = GetSample(grassImg, x, z, texRes, tileScale);
 				Color rockColor = GetSample(rockImg, x, z, texRes, tileScale);
@@ -242,6 +278,7 @@ public static class RealWorldTexturePainter
 
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам
 	// Используем tiling (повторение) для увеличения детализации
+	// Использует билинейную интерполяцию для плавных переходов и скрытия швов
 	private static Color GetSample(Image img, int x, int z, int texRes, float tileScale = 4.0f)
 	{
 		// Применяем tiling - текстура повторяется несколько раз
@@ -253,15 +290,48 @@ public static class RealWorldTexturePainter
 		u = u - Mathf.Floor(u);
 		v = v - Mathf.Floor(v);
 		
-		// Преобразуем в координаты текстуры
-		int tx = (int)(u * (img.GetWidth() - 1));
-		int tz = (int)(v * (img.GetHeight() - 1));
+		// Преобразуем в координаты текстуры (0..1)
+		float texU = u;
+		float texV = v;
 		
-		// Ограничиваем границы
-		tx = Mathf.Clamp(tx, 0, img.GetWidth() - 1);
-		tz = Mathf.Clamp(tz, 0, img.GetHeight() - 1);
+		// Преобразуем в пиксельные координаты текстуры
+		float pixelU = texU * (img.GetWidth() - 1);
+		float pixelV = texV * (img.GetHeight() - 1);
 		
-		return img.GetPixel(tx, tz);
+		// Получаем целочисленные координаты для билинейной интерполяции
+		int tx0 = (int)Mathf.Floor(pixelU);
+		int tx1 = tx0 + 1;
+		int tz0 = (int)Mathf.Floor(pixelV);
+		int tz1 = tz0 + 1;
+		
+		// Ограничиваем границы с учетом зацикливания (tiling)
+		tx0 = tx0 % img.GetWidth();
+		tx1 = tx1 % img.GetWidth();
+		tz0 = tz0 % img.GetHeight();
+		tz1 = tz1 % img.GetHeight();
+		
+		// Обрабатываем отрицательные значения
+		if (tx0 < 0) tx0 += img.GetWidth();
+		if (tx1 < 0) tx1 += img.GetWidth();
+		if (tz0 < 0) tz0 += img.GetHeight();
+		if (tz1 < 0) tz1 += img.GetHeight();
+		
+		// Получаем цвета в четырех углах
+		Color c00 = img.GetPixel(tx0, tz0);
+		Color c10 = img.GetPixel(tx1, tz0);
+		Color c01 = img.GetPixel(tx0, tz1);
+		Color c11 = img.GetPixel(tx1, tz1);
+		
+		// Вычисляем дробные части для интерполяции
+		float fx = pixelU - Mathf.Floor(pixelU);
+		float fz = pixelV - Mathf.Floor(pixelV);
+		
+		// Билинейная интерполяция для плавного перехода
+		Color c0 = c00.Lerp(c10, fx);
+		Color c1 = c01.Lerp(c11, fx);
+		Color finalColor = c0.Lerp(c1, fz);
+		
+		return finalColor;
 	}
 }
 
