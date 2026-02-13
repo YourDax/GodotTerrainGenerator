@@ -1,7 +1,7 @@
 @tool
 extends VBoxContainer
 
-signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode)
+signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend)
 
 @onready var length_field = $"VBoxContainer/HBoxContainer X/Xbox"
 @onready var width_field = $"VBoxContainer/HBoxContainer Z/Zbox"
@@ -13,6 +13,13 @@ signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, res
 @onready var water_level_field = $"VBoxContainer/HBoxContainer WaterLevel/WaterLevel"
 @onready var texture_button = $"VBoxContainer/HBoxContainer PngImg/TextureSave"
 @onready var file_dialog = $"VBoxContainer/HBoxContainer PngImg/FileDialog"
+@onready var smoothing_slider = $"VBoxContainer/HBoxContainer Smoothing/SmoothingSlider"
+@onready var smoothing_value_label = $"VBoxContainer/HBoxContainer Smoothing/SmoothingValue"
+@onready var texture_mode_selector = $"VBoxContainer/HBoxContainer TextureMode/TextureModeSelector"
+@onready var grass_rock_container = $"VBoxContainer/HBoxContainer GrassRock"
+@onready var slope_blend_container = $"VBoxContainer/HBoxContainer SlopeBlend"
+@onready var slope_blend_slider = $"VBoxContainer/HBoxContainer SlopeBlend/SlopeBlendSlider"
+@onready var slope_blend_value_label = $"VBoxContainer/HBoxContainer SlopeBlend/SlopeBlendValue"
 
 @onready var random_block = $"VBoxContainer"
 @onready var realmap_block = $"VBoxContainerRealMap"
@@ -125,6 +132,18 @@ func _ready():
 	
 	# Настраиваем режим разрешения
 	_setup_resolution_mode()
+	
+	# Настраиваем ползунок сглаживания
+	_setup_smoothing_slider()
+	
+	# Настраиваем селектор режима текстур
+	_setup_texture_mode()
+	
+	# Настраиваем ползунок плавности перехода на склонах
+	_setup_slope_blend_slider()
+	
+	# Изначально показываем поле границы трава-камень
+	_update_texture_mode_ui()
 
 func _setup_coordinate_spinboxes():
 	# Настраиваем все поля координат для большей точности
@@ -207,12 +226,55 @@ func _on_resolution_mode_selected(index: int):
 	var mode_name = resolution_mode_button.get_item_text(index)
 	print("Выбран режим разрешения: ", mode_name)
 
+func _setup_smoothing_slider():
+	if smoothing_slider:
+		smoothing_slider.value_changed.connect(_on_smoothing_changed)
+		_on_smoothing_changed(smoothing_slider.value)
+
+func _on_smoothing_changed(value: float):
+	if smoothing_value_label:
+		smoothing_value_label.text = "%.2f" % value
+
+func _setup_slope_blend_slider():
+	if slope_blend_slider:
+		slope_blend_slider.value_changed.connect(_on_slope_blend_changed)
+		_on_slope_blend_changed(slope_blend_slider.value)
+
+func _on_slope_blend_changed(value: float):
+	if slope_blend_value_label:
+		slope_blend_value_label.text = "%.2f" % value
+
+func _setup_texture_mode():
+	if texture_mode_selector:
+		# Очищаем список перед добавлением элементов (на случай, если они уже есть)
+		texture_mode_selector.clear()
+		# Добавляем варианты выбора
+		texture_mode_selector.add_item("По высоте (песок → трава → камень)")
+		texture_mode_selector.add_item("Камень на склонах (только на горах)")
+		# Устанавливаем первый вариант по умолчанию
+		texture_mode_selector.selected = 0
+		# Подключаем сигнал выбора
+		texture_mode_selector.item_selected.connect(_on_texture_mode_selected)
+
+func _on_texture_mode_selected(index: int):
+	_update_texture_mode_ui()
+
+func _update_texture_mode_ui():
+	if texture_mode_selector and grass_rock_container and slope_blend_container:
+		# Показываем поле "Граница трава-камень" только для режима по высоте (0)
+		grass_rock_container.visible = (texture_mode_selector.selected == 0)
+		# Показываем поле "Плавность перехода" только для режима на склонах (1)
+		slope_blend_container.visible = (texture_mode_selector.selected == 1)
+
 func _on_generate_button_pressed() -> void:
 	var leftuplat := float(leftuplat_input.value)
 	var leftuplng := float(leftuplng_input.value)
 	var rightdownlat  := float(rightdownlat_input.value)
 	var rightdownlng  := float(rightdownlng_input.value)
 	var resolution_mode = resolution_mode_button.selected if resolution_mode_button else 0
+	var smoothing = float(smoothing_slider.value) if smoothing_slider else 1.0
+	var texture_mode = texture_mode_selector.selected if texture_mode_selector else 0
+	var slope_blend = float(slope_blend_slider.value) if slope_blend_slider else 0.5
 	emit_signal("generate_pressed",
 		int(length_field.value),
 		int(width_field.value),
@@ -225,4 +287,7 @@ func _on_generate_button_pressed() -> void:
 		texture_save_path,
 		real_map_check.button_pressed,
 		leftuplat, leftuplng, rightdownlat, rightdownlng,
-		resolution_mode)
+		resolution_mode,
+		smoothing,
+		texture_mode,
+		slope_blend)

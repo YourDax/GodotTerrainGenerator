@@ -22,6 +22,8 @@ layout_mode = 2
 
 [node name="Xbox" type="SpinBox" parent="VBoxContainer/HBoxContainer X"]
 layout_mode = 2
+min_value = 10.0
+max_value = 1000.0
 value = 50.0
 
 [node name="Label" type="Label" parent="VBoxContainer/HBoxContainer X"]
@@ -33,6 +35,8 @@ layout_mode = 2
 
 [node name="Zbox" type="SpinBox" parent="VBoxContainer/HBoxContainer Z"]
 layout_mode = 2
+min_value = 10.0
+max_value = 1000.0
 value = 50.0
 
 [node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Z"]
@@ -112,6 +116,57 @@ value = 64.0
 layout_mode = 2
 text = "Resolution"
 
+[node name="HBoxContainer Smoothing" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="SmoothingSlider" type="HSlider" parent="VBoxContainer/HBoxContainer Smoothing"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="SmoothingValue" type="Label" parent="VBoxContainer/HBoxContainer Smoothing"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "1.00"
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Smoothing"]
+layout_mode = 2
+text = "Сглаживание"
+
+[node name="HBoxContainer TextureMode" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer TextureMode"]
+layout_mode = 2
+text = "Режим текстур:"
+
+[node name="TextureModeSelector" type="OptionButton" parent="VBoxContainer/HBoxContainer TextureMode"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HBoxContainer SlopeBlend" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+visible = false
+
+[node name="SlopeBlendSlider" type="HSlider" parent="VBoxContainer/HBoxContainer SlopeBlend"]
+layout_mode = 2
+min_value = 0.0
+max_value = 1.0
+step = 0.01
+value = 0.5
+size_flags_horizontal = 3
+
+[node name="SlopeBlendValue" type="Label" parent="VBoxContainer/HBoxContainer SlopeBlend"]
+layout_mode = 2
+text = "0.50"
+size_flags_horizontal = 0
+
+[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer SlopeBlend"]
+layout_mode = 2
+text = "Плавность перехода (склоны)"
+
 [node name="HBoxContainer PngImg" type="HBoxContainer" parent="VBoxContainer"]
 layout_mode = 2
 
@@ -141,6 +196,155 @@ text = "📍 Быстрый выбор места:"
 [node name="LocationPresets" type="OptionButton" parent="VBoxContainerRealMap"]
 layout_mode = 2
 selected = 0
+item_count = 74
+popup/item_0/text = "Выберите место..."
+popup/item_0/id = 0
+popup/item_1/text = "🏔️ Эверест (Гималаи)"
+popup/item_1/id = 1
+popup/item_2/text = "🏔️ Маттерхорн (Альпы)"
+popup/item_2/id = 2
+popup/item_3/text = "🏔️ Килиманджаро (Танзания)"
+popup/item_3/id = 3
+popup/item_4/text = "🏔️ Денали (Аляска)"
+popup/item_4/id = 4
+popup/item_5/text = "🏔️ Монблан (Альпы)"
+popup/item_5/id = 5
+popup/item_6/text = "🏔️ Фудзияма (Япония)"
+popup/item_6/id = 6
+popup/item_7/text = "🏜️ Гранд-Каньон (США)"
+popup/item_7/id = 7
+popup/item_8/text = "🏜️ Долина Смерти (США)"
+popup/item_8/id = 8
+popup/item_9/text = "🌋 Везувий (Италия)"
+popup/item_9/id = 9
+popup/item_10/text = "🌋 Этна (Сицилия)"
+popup/item_10/id = 10
+popup/item_11/text = "🏙️ Москва (центр)"
+popup/item_11/id = 11
+popup/item_12/text = "🏙️ Санкт-Петербург"
+popup/item_12/id = 12
+popup/item_13/text = "🏙️ Нью-Йорк (Манхэттен)"
+popup/item_13/id = 13
+popup/item_14/text = "🏙️ Париж (центр)"
+popup/item_14/id = 14
+popup/item_15/text = "🏙️ Лондон (центр)"
+popup/item_15/id = 15
+popup/item_16/text = "🏙️ Токио (центр)"
+popup/item_16/id = 16
+popup/item_17/text = "🏝️ Гавайи (Мауна-Кеа)"
+popup/item_17/id = 17
+popup/item_18/text = "🏔️ Альпы (Швейцария)"
+popup/item_18/id = 18
+popup/item_19/text = "🏔️ Кавказ (Эльбрус)"
+popup/item_19/id = 19
+popup/item_20/text = "🏔️ Урал (гора Народная)"
+popup/item_20/id = 20
+popup/item_21/text = "🏜️ Сахара (пустыня)"
+popup/item_21/id = 21
+popup/item_22/text = "🌊 Мальдивы"
+popup/item_22/id = 22
+popup/item_23/text = "🏔️ Анды (Мачу-Пикчу)"
+popup/item_23/id = 23
+popup/item_24/text = "🏔️ Аконкагуа (Анды)"
+popup/item_24/id = 24
+popup/item_25/text = "🏔️ Монте-Роза (Альпы)"
+popup/item_25/id = 25
+popup/item_26/text = "🏔️ Казбек (Кавказ)"
+popup/item_26/id = 26
+popup/item_27/text = "🏔️ Арарат (Турция)"
+popup/item_27/id = 27
+popup/item_28/text = "🌋 Кракатау (Индонезия)"
+popup/item_28/id = 28
+popup/item_29/text = "🌋 Сент-Хеленс (США)"
+popup/item_29/id = 29
+popup/item_30/text = "🏜️ Гоби (Монголия)"
+popup/item_30/id = 30
+popup/item_31/text = "🏜️ Атакама (Чили)"
+popup/item_31/id = 31
+popup/item_32/text = "🏔️ Гималаи (Эверест, расширенная область)"
+popup/item_32/id = 32
+popup/item_33/text = "🏔️ Альпы (расширенная область)"
+popup/item_33/id = 33
+popup/item_34/text = "🏙️ Сидней (Австралия)"
+popup/item_34/id = 34
+popup/item_35/text = "🏙️ Сан-Франциско (США)"
+popup/item_35/id = 35
+popup/item_36/text = "🏙️ Лос-Анджелес (США)"
+popup/item_36/id = 36
+popup/item_37/text = "🏙️ Чикаго (США)"
+popup/item_37/id = 37
+popup/item_38/text = "🏙️ Сиэтл (США)"
+popup/item_38/id = 38
+popup/item_39/text = "🏙️ Ванкувер (Канада)"
+popup/item_39/id = 39
+popup/item_40/text = "🏙️ Торонто (Канада)"
+popup/item_40/id = 40
+popup/item_41/text = "🏙️ Берлин (Германия)"
+popup/item_41/id = 41
+popup/item_42/text = "🏙️ Рим (Италия)"
+popup/item_42/id = 42
+popup/item_43/text = "🏙️ Мадрид (Испания)"
+popup/item_43/id = 43
+popup/item_44/text = "🏙️ Амстердам (Нидерланды)"
+popup/item_44/id = 44
+popup/item_45/text = "🏙️ Стокгольм (Швеция)"
+popup/item_45/id = 45
+popup/item_46/text = "🏙️ Осло (Норвегия)"
+popup/item_46/id = 46
+popup/item_47/text = "🏙️ Копенгаген (Дания)"
+popup/item_47/id = 47
+popup/item_48/text = "🏙️ Вена (Австрия)"
+popup/item_48/id = 48
+popup/item_49/text = "🏙️ Прага (Чехия)"
+popup/item_49/id = 49
+popup/item_50/text = "🏙️ Варшава (Польша)"
+popup/item_50/id = 50
+popup/item_51/text = "🏙️ Будапешт (Венгрия)"
+popup/item_51/id = 51
+popup/item_52/text = "🏙️ Афины (Греция)"
+popup/item_52/id = 52
+popup/item_53/text = "🏙️ Стамбул (Турция)"
+popup/item_53/id = 53
+popup/item_54/text = "🏙️ Каир (Египет)"
+popup/item_54/id = 54
+popup/item_55/text = "🏙️ Тель-Авив (Израиль)"
+popup/item_55/id = 55
+popup/item_56/text = "🏙️ Дели (Индия)"
+popup/item_56/id = 56
+popup/item_57/text = "🏙️ Мумбаи (Индия)"
+popup/item_57/id = 57
+popup/item_58/text = "🏙️ Бангкок (Таиланд)"
+popup/item_58/id = 58
+popup/item_59/text = "🏙️ Сеул (Южная Корея)"
+popup/item_59/id = 59
+popup/item_60/text = "🏙️ Пекин (Китай)"
+popup/item_60/id = 60
+popup/item_61/text = "🏙️ Шанхай (Китай)"
+popup/item_61/id = 61
+popup/item_62/text = "🏙️ Джакарта (Индонезия)"
+popup/item_62/id = 62
+popup/item_63/text = "🏙️ Манила (Филиппины)"
+popup/item_63/id = 63
+popup/item_64/text = "🏙️ Мельбурн (Австралия)"
+popup/item_64/id = 64
+popup/item_65/text = "🏙️ Окленд (Новая Зеландия)"
+popup/item_65/id = 65
+popup/item_66/text = "🏙️ Сан-Паулу (Бразилия)"
+popup/item_66/id = 66
+popup/item_67/text = "🏙️ Рио-де-Жанейро (Бразилия)"
+popup/item_67/id = 67
+popup/item_68/text = "🏙️ Буэнос-Айрес (Аргентина)"
+popup/item_68/id = 68
+popup/item_69/text = "🏙️ Мехико (Мексика)"
+popup/item_69/id = 69
+popup/item_70/text = "🏙️ Лима (Перу)"
+popup/item_70/id = 70
+popup/item_71/text = "🏙️ Богота (Колумбия)"
+popup/item_71/id = 71
+popup/item_72/text = "🏙️ Каракас (Венесуэла)"
+popup/item_72/id = 72
+popup/item_73/text = "🏙️ Сантьяго (Чили)"
+popup/item_73/id = 73
 
 [node name="HSeparatorResolution" type="HSeparator" parent="VBoxContainerRealMap"]
 layout_mode = 2
@@ -152,6 +356,13 @@ text = "⚙️ Режим разрешения:"
 [node name="ResolutionMode" type="OptionButton" parent="VBoxContainerRealMap"]
 layout_mode = 2
 selected = 0
+item_count = 3
+popup/item_0/text = "50x50 (25 запросов) - Высокое качество, дольше"
+popup/item_0/id = 0
+popup/item_1/text = "31x31 (10 запросов) - Среднее качество, быстрее"
+popup/item_1/id = 1
+popup/item_2/text = "Адаптивное - Автоматический выбор"
+popup/item_2/id = 2
 
 [node name="HSeparatorCoords" type="HSeparator" parent="VBoxContainerRealMap"]
 layout_mode = 2
@@ -161,13 +372,13 @@ layout_mode = 2
 
 [node name="LeftUpLat" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerLeftUpLat"]
 layout_mode = 2
-min_value = -100.0
-max_value = 100.0
+min_value = -180.0
+max_value = 180.0
 step = 0.0001
-value = 46.02
-custom_arrow_step = 0.0001
+value = 46.02000000000001
 allow_greater = true
 allow_lesser = true
+custom_arrow_step = 0.0001
 
 [node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerLeftUpLat"]
 layout_mode = 2
@@ -179,13 +390,13 @@ layout_mode = 2
 
 [node name="LeftUpLng" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerLeftUpLng"]
 layout_mode = 2
-min_value = -100.0
-max_value = 100.0
+min_value = -180.0
+max_value = 180.0
 step = 0.0001
-value = 46.02
-custom_arrow_step = 0.0001
+value = 46.02000000000001
 allow_greater = true
 allow_lesser = true
+custom_arrow_step = 0.0001
 
 [node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerLeftUpLng"]
 layout_mode = 2
@@ -197,13 +408,13 @@ layout_mode = 2
 
 [node name="RightDownLat" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerRightDownLat"]
 layout_mode = 2
-min_value = -100.0
-max_value = 100.0
+min_value = -180.0
+max_value = 180.0
 step = 0.0001
 value = 50.22
-custom_arrow_step = 0.0001
 allow_greater = true
 allow_lesser = true
+custom_arrow_step = 0.0001
 
 [node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerRightDownLat"]
 layout_mode = 2
@@ -215,13 +426,13 @@ layout_mode = 2
 
 [node name="RightDownLng" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerRightDownLng"]
 layout_mode = 2
-min_value = -100.0
-max_value = 100.0
+min_value = -180.0
+max_value = 180.0
 step = 0.0001
 value = 50.22
-custom_arrow_step = 0.0001
 allow_greater = true
 allow_lesser = true
+custom_arrow_step = 0.0001
 
 [node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerRightDownLng"]
 layout_mode = 2
