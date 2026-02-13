@@ -2,8 +2,10 @@
 extends EditorPlugin
 
 var panel
+var progress_dialog = null
 const TERRA_PANEL = preload("res://addons/terragenerating/terra_panel.tscn")
 const TERRAIN_SCENE = preload("res://addons/terragenerating/Logic/TerrainGenerator.tscn")
+const PROGRESS_DIALOG = preload("res://addons/terragenerating/progress_dialog.tscn")
 
 
 func _enter_tree():
@@ -16,7 +18,7 @@ func _exit_tree():
 	panel.free()
 
 func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_mode,
-		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode):
+		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend):
 	var selection = get_editor_interface().get_selection()
 	var selected_nodes = selection.get_selected_nodes()
 
@@ -41,19 +43,52 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 
 	print("TerrainGenerator добавлен в сцену")
 
-	# Проверяем, есть ли метод Generate в C# классе
-	if terrain_instance.has_method("Generate"):
-		print("Вызываю TerrainGenerator.Generate() из C#...")
-		terrain_instance.Generate(
-			length, width,
-			min_h, max_h,
-			sand_grass, grass_rock,
-			resolution,
-			water_level,
-			texture_path,
-			real_map_mode,
-			leftuplat, leftuplng, rightdownlat, rightdownlng,
-			resolution_mode
-		)
-	else:
-		push_error("Узел TerrainGenerator не содержит метод Generate!")
+	# Создаем и показываем окно прогресса
+	progress_dialog = PROGRESS_DIALOG.instantiate()
+	get_editor_interface().get_base_control().add_child(progress_dialog)
+	progress_dialog.update_progress(0.0, "Инициализация генерации...")
+	
+	# Подключаем сигнал для обновления прогресса из C#
+	# В Godot 4 C# сигналы доступны через connect
+	if terrain_instance.has_signal("progress_updated"):
+		terrain_instance.connect("progress_updated", _on_progress_updated)
+	
+	# Вызываем метод Generate напрямую
+	# В Godot 4 C# методы с параметрами по умолчанию могут не определяться через has_method
+	print("Вызываю TerrainGenerator.Generate() из C#...")
+	terrain_instance.Generate(
+		length, width,
+		min_h, max_h,
+		sand_grass, grass_rock,
+		resolution,
+		water_level,
+		texture_path,
+		real_map_mode,
+		leftuplat, leftuplng, rightdownlat, rightdownlng,
+		resolution_mode,
+		smoothing,
+		texture_mode,
+		slope_blend
+	)
+	
+	# Для случайной генерации закрываем окно сразу (синхронная операция)
+	if not real_map_mode:
+		await get_tree().process_frame
+		await get_tree().process_frame
+		if progress_dialog:
+			progress_dialog.update_progress(100.0, "Генерация завершена!")
+			await get_tree().create_timer(0.5).timeout
+			progress_dialog.close_dialog()
+			progress_dialog = null
+
+func _on_progress_updated(progress: float, status: String):
+	"""Обработчик обновления прогресса из C#"""
+	if progress_dialog:
+		progress_dialog.update_progress(progress, status)
+		
+		# Если прогресс 100%, закрываем окно через небольшую задержку
+		if progress >= 100.0:
+			await get_tree().create_timer(0.5).timeout
+			if progress_dialog:
+				progress_dialog.close_dialog()
+				progress_dialog = null

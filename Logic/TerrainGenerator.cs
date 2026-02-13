@@ -5,6 +5,10 @@ using System.Threading.Tasks;
 [Tool]
 public partial class TerrainGenerator : Node3D
 {
+	// Сигнал для обновления прогресса
+	[Signal]
+	public delegate void ProgressUpdatedEventHandler(float progress, string status);
+	
 	public void Generate(
 		int length, int width,
 		float minHeight, float maxHeight,
@@ -15,7 +19,10 @@ public partial class TerrainGenerator : Node3D
 		string savePath,
 		bool realMapMode,
 		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng,
-		int resolutionMode = 0
+		int resolutionMode = 0,
+		float smoothing = 1.0f,
+		int textureMode = 0,
+		float slopeBlend = 0.5f
 	)
 	{
 		GD.Print("C# Generate() вызван из GDScript!");
@@ -32,32 +39,46 @@ public partial class TerrainGenerator : Node3D
 		else
 		{
 			GD.Print("Режим случайной генерации");
-			GenerateRandomTerrain(
+			_ = GenerateRandomTerrainAsync(
 				length, width,
 				minHeight, maxHeight,
 				sandGrass, grassRock,
 				resolution,
 				waterLevel,
-				savePath
+				savePath,
+				smoothing,
+				textureMode,
+				slopeBlend
 			);
 		}
 	}
-	private void GenerateRandomTerrain(
+	private async Task GenerateRandomTerrainAsync(
 		int length, int width,
 		float minHeight, float maxHeight,
 		float sandGrass, float grassRock,
 		int resolution,
 		float waterLevel,
-		string savePath
+		string savePath,
+		float smoothing,
+		int textureMode,
+		float slopeBlend
 	)
 	{
+		// Обновляем прогресс
+		EmitSignal(SignalName.ProgressUpdated, 10.0f, "Генерация меша...");
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		
 		var random = new RandomTerrainGenerator();
 
 		Mesh mesh = random.GenerateMesh(
 			length, width,
 			minHeight, maxHeight,
-			resolution
+			resolution,
+			smoothing
 		);
+
+		EmitSignal(SignalName.ProgressUpdated, 30.0f, "Создание экземпляра меша...");
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 		var meshInstance = new MeshInstance3D
 		{
@@ -72,6 +93,9 @@ public partial class TerrainGenerator : Node3D
 		AddChild(meshInstance);
 		if (Owner != null) meshInstance.Owner = Owner;
 
+		EmitSignal(SignalName.ProgressUpdated, 50.0f, "Применение текстур...");
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
 		TerrainTexturePainter.ApplyHeightTexture(
 			meshInstance,
 			minHeight,
@@ -81,8 +105,15 @@ public partial class TerrainGenerator : Node3D
 			"res://textures/rock.png",
 			savePath,
 			sandGrass,
-			grassRock
+			grassRock,
+			length,
+			width,
+			textureMode,
+			slopeBlend
 		);
+
+		EmitSignal(SignalName.ProgressUpdated, 80.0f, "Создание воды...");
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
 		float worldWater = Mathf.Lerp(minHeight, maxHeight, waterLevel) - yOffset;
 
@@ -90,6 +121,8 @@ public partial class TerrainGenerator : Node3D
 
 		AddChild(water);
 		if (Owner != null) water.Owner = Owner;
+
+		EmitSignal(SignalName.ProgressUpdated, 100.0f, "Генерация завершена!");
 	}
 
 	private async Task GenerateRealMapTerrainAsync(
@@ -97,12 +130,16 @@ public partial class TerrainGenerator : Node3D
 		int resolutionMode = 0
 	)
 	{
+		// Передаем callback для обновления прогресса
 		await RealMapTerrainGenerator.Generate(
 			this,
 			leftuplat, leftuplng,
 			rightdownlat, rightdownlng,
 			Owner,
-			resolutionMode
+			resolutionMode,
+			(progress, status) => {
+				CallDeferred(MethodName.EmitSignal, SignalName.ProgressUpdated, progress, status);
+			}
 		);
 	}
 }
