@@ -8,31 +8,65 @@ public partial class RandomTerrainGenerator : Node
 	public Mesh GenerateMesh(
 		int length, int width,
 		float minHeight, float maxHeight,
-		int resolution
+		int resolution,
+		float smoothing = 1.0f
 	)
 	{
-		// Создаём генератор шума
-		var noise = new FastNoiseLite
+		// Вычисляем размер карты для адаптивной генерации
+		int maxSize = Math.Max(length, width);
+		
+		// Создаём несколько генераторов шума для разных масштабов
+		// Это создаст более реалистичный ландшафт с крупными формами и деталями
+		
+		// 1. Крупномасштабный шум для основных форм рельефа (горы, долины)
+		// Частота адаптируется к размеру карты - на больших картах более низкая частота
+		float baseFrequency = 1.0f / (maxSize * 0.5f); // Адаптивная частота
+		baseFrequency = Mathf.Clamp(baseFrequency, 0.001f, 0.02f); // Ограничиваем диапазон
+		
+		var baseNoise = new FastNoiseLite
 		{
-			// Используем Перлин-шум для плавных переходов
 			NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
-			// Частота влияет на детализацию (баланс между гладкостью и деталями)
-			Frequency = 0.04f, // Компромисс между плавностью и деталями
-			// Используем случайное зерно для разнообразия
+			Frequency = baseFrequency,
 			Seed = (int)GD.Randi(),
-			// Добавляем фрактальный шум для более естественного вида
 			FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
-			FractalOctaves = 2, // Уменьшено для более естественного вида (меньше размытия)
+			FractalOctaves = 4, // Больше октав для более плавных крупных форм
 			FractalLacunarity = 2.0f,
-			FractalGain = 0.6f // Увеличено для более выраженных деталей
+			FractalGain = 0.5f // Меньший gain для более плавных переходов
+		};
+		
+		// 2. Среднемасштабный шум для холмов и впадин
+		var hillNoise = new FastNoiseLite
+		{
+			NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
+			Frequency = baseFrequency * 3.0f, // В 3 раза выше частота
+			Seed = (int)GD.Randi() + 1000, // Другое зерно
+			FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
+			FractalOctaves = 3,
+			FractalLacunarity = 2.0f,
+			FractalGain = 0.5f
+		};
+		
+		// 3. Мелкомасштабный шум для деталей (только если smoothing > 0)
+		var detailNoise = new FastNoiseLite
+		{
+			NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
+			Frequency = baseFrequency * 8.0f, // В 8 раз выше частота
+			Seed = (int)GD.Randi() + 2000, // Другое зерно
+			FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
+			FractalOctaves = 2,
+			FractalLacunarity = 2.0f,
+			FractalGain = 0.4f
 		};
 
-		// Генерация меша через MeshBuilder с переданным шумом
+		// Генерация меша через MeshBuilder с переданными шумами
 		return MeshBuilder.BuildHeightMesh(
 			length, width,
 			minHeight, maxHeight,
 			resolution,
-			noise
+			baseNoise,
+			hillNoise,
+			detailNoise,
+			smoothing
 		);
 	}
 

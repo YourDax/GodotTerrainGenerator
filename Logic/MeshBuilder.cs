@@ -3,12 +3,36 @@ using Godot;
 // Класс для процедурной генерации мешей
 public static class MeshBuilder
 {
-	// Генерация меша на основе шума высот
+	// Генерация меша на основе шума высот (старый метод для обратной совместимости)
 	public static Mesh BuildHeightMesh(
 		int length, int width,
 		float minHeight, float maxHeight,
 		int resolution,
-		FastNoiseLite noise
+		FastNoiseLite noise,
+		float smoothing = 1.0f
+	)
+	{
+		// Создаем простые шумы для обратной совместимости
+		return BuildHeightMesh(
+			length, width,
+			minHeight, maxHeight,
+			resolution,
+			noise,
+			noise,
+			noise,
+			smoothing
+		);
+	}
+	
+	// Генерация меша на основе многослойного шума для реалистичного ландшафта
+	public static Mesh BuildHeightMesh(
+		int length, int width,
+		float minHeight, float maxHeight,
+		int resolution,
+		FastNoiseLite baseNoise,
+		FastNoiseLite hillNoise,
+		FastNoiseLite detailNoise,
+		float smoothing = 1.0f
 	)
 	{
 		// Используем SurfaceTool для более гладкого меша с нормалями
@@ -32,13 +56,39 @@ public static class MeshBuilder
 				float wx = px * length - length / 2f;
 				float wz = pz * width - width / 2f;
 
-				// Получение шума по координатам (основной рельеф)
-				float n = noise.GetNoise2D(wx, wz);
+				// Многослойная система шума для реалистичного ландшафта
+				// 1. Крупномасштабный шум - основные формы рельефа (горы, долины)
+				// Это создает основную структуру ландшафта
+				float baseNoiseValue = baseNoise.GetNoise2D(wx, wz);
 				
-				// Добавляем дополнительный слой деталей для более естественного вида
-				// Используем более высокую частоту для мелких деталей
-				float detailNoise = noise.GetNoise2D(wx * 3.0f, wz * 3.0f) * 0.15f;
-				n += detailNoise;
+				// Применяем степенную функцию для более плавных крупных форм
+				// Это делает горы более округлыми, а долины более широкими
+				baseNoiseValue = Mathf.Sign(baseNoiseValue) * Mathf.Pow(Mathf.Abs(baseNoiseValue), 0.7f);
+				
+				// 2. Среднемасштабный шум - холмы и впадины
+				// Добавляет разнообразие к крупным формам
+				float hills = hillNoise.GetNoise2D(wx, wz) * 0.4f; // 40% влияния
+				
+				// 3. Мелкомасштабный шум - детали поверхности
+				// Добавляет мелкие неровности, но только если smoothing > 0
+				float details = detailNoise.GetNoise2D(wx, wz) * 0.15f * smoothing; // 15% влияния, зависит от smoothing
+				
+				// Комбинируем все слои
+				// Крупные формы имеют наибольший вес, детали - наименьший
+				float n = baseNoiseValue + hills + details;
+				
+				// Применяем дополнительное сглаживание для больших карт
+				// Это создает более естественные переходы между высотами
+				int maxSize = Mathf.Max(length, width);
+				if (maxSize > 200)
+				{
+					// Для больших карт применяем дополнительное сглаживание
+					// Используем степенную функцию для более плавных переходов
+					n = Mathf.Sign(n) * Mathf.Pow(Mathf.Abs(n), 0.85f);
+				}
+				
+				// Нормализуем результат обратно в диапазон [-1, 1]
+				n = Mathf.Clamp(n, -1.0f, 1.0f);
 				
 				// Преобразование шума [-1..1] в высоту [minHeight..maxHeight]
 				float height = Mathf.Lerp(minHeight, maxHeight, (n + 1f) * 0.5f);
@@ -80,7 +130,75 @@ public static class MeshBuilder
 		}
 
 		// Генерируем нормали для сглаживания поверхности
-		// Используем параметр smooth=true для плавных переходов, но не слишком размытых
+		// Если сглаживание меньше 1.0, применяем дополнительное сглаживание к вершинам
+		if (smoothing < 1.0f)
+		{
+			// Применяем простое сглаживание вершин для более плавного рельефа
+			// Проходим по внутренним вершинам и сглаживаем их высоту
+			for (int iteration = 0; iteration < Mathf.RoundToInt((1.0f - smoothing) * 3.0f); iteration++)
+			{
+				Vector3[] smoothedVertices = new Vector3[vertices.Length];
+				System.Array.Copy(vertices, smoothedVertices, vertices.Length);
+				
+				for (int z = 1; z < resolution - 1; z++)
+				{
+					for (int x = 1; x < resolution - 1; x++)
+					{
+						int idx = z * resolution + x;
+						
+						// Берем среднее значение высот соседних вершин
+						float avgHeight = (
+							vertices[idx - 1].Y + // левый
+							vertices[idx + 1].Y + // правый
+							vertices[idx - resolution].Y + // верхний
+							vertices[idx + resolution].Y // нижний
+						) / 4.0f;
+						
+						// Интерполируем между исходной и сглаженной высотой
+						float originalHeight = vertices[idx].Y;
+						smoothedVertices[idx] = new Vector3(
+							vertices[idx].X,
+							Mathf.Lerp(originalHeight, avgHeight, 0.5f * (1.0f - smoothing)),
+							vertices[idx].Z
+						);
+					}
+				}
+				
+				vertices = smoothedVertices;
+			}
+			
+			// Обновляем вершины в SurfaceTool
+			st = new SurfaceTool();
+			st.Begin(Mesh.PrimitiveType.Triangles);
+			
+			// Пересоздаем треугольники с обновленными вершинами
+			for (int z = 0; z < resolution - 1; z++)
+			{
+				for (int x = 0; x < resolution - 1; x++)
+				{
+					int a = z * resolution + x;
+					int b = a + resolution;
+					int c = a + 1;
+					int d = b + 1;
+
+					st.SetUV(uvs[a]);
+					st.AddVertex(vertices[a]);
+					st.SetUV(uvs[b]);
+					st.AddVertex(vertices[b]);
+					st.SetUV(uvs[c]);
+					st.AddVertex(vertices[c]);
+
+					st.SetUV(uvs[c]);
+					st.AddVertex(vertices[c]);
+					st.SetUV(uvs[b]);
+					st.AddVertex(vertices[b]);
+					st.SetUV(uvs[d]);
+					st.AddVertex(vertices[d]);
+				}
+			}
+		}
+		
+		// Генерируем нормали для сглаживания поверхности
 		st.GenerateNormals();
 
 		// Финализируем меш
