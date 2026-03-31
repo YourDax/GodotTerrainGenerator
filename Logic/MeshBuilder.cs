@@ -20,7 +20,14 @@ public static class MeshBuilder
 			noise,
 			noise,
 			noise,
-			smoothing
+			smoothing,
+			false,
+			0.35f,
+			0.2f,
+			1f,
+			0.06f,
+			0.18f,
+			null
 		);
 	}
 	
@@ -32,7 +39,14 @@ public static class MeshBuilder
 		FastNoiseLite baseNoise,
 		FastNoiseLite hillNoise,
 		FastNoiseLite detailNoise,
-		float smoothing = 1.0f
+		float smoothing = 1.0f,
+		bool islandMode = false,
+		float waterLevel01 = 0.35f,
+		float islandCoastWidth = 0.2f,
+		float islandCliffExponent = 1f,
+		float islandCoastNoiseAmp = 0.06f,
+		float islandSeabedDepthFrac = 0.18f,
+		FastNoiseLite islandCoastNoise = null
 	)
 	{
 		// Используем SurfaceTool для более гладкого меша с нормалями
@@ -92,6 +106,26 @@ public static class MeshBuilder
 				
 				// Преобразование шума [-1..1] в высоту [minHeight..maxHeight]
 				float height = Mathf.Lerp(minHeight, maxHeight, (n + 1f) * 0.5f);
+
+				if (islandMode)
+				{
+					float waterY = Mathf.Lerp(minHeight, maxHeight, waterLevel01);
+					float hr = Mathf.Max(1e-6f, maxHeight - minHeight);
+					float seabed = Mathf.Min(minHeight - hr * 0.02f, waterY - hr * islandSeabedDepthFrac);
+					float dEdge = Mathf.Min(Mathf.Min(px, 1f - px), Mathf.Min(pz, 1f - pz));
+					float noiseOff = 0f;
+					if (islandCoastNoise != null)
+						noiseOff = islandCoastNoise.GetNoise2D(wx * 0.12f, wz * 0.12f) * islandCoastNoiseAmp;
+					float dEff = Mathf.Clamp(dEdge + noiseOff, 0f, 0.5f);
+					float cw = Mathf.Max(islandCoastWidth, 0.06f);
+					float tIsland = Mathf.Clamp(dEff / cw, 0f, 1f);
+					tIsland = Mathf.Pow(tIsland, Mathf.Max(0.2f, islandCliffExponent));
+					tIsland = Mathf.SmoothStep(0f, 1f, tIsland);
+					float landH = height;
+					height = Mathf.Lerp(seabed, landH, tIsland);
+					if (x == 0 || x == resolution - 1 || z == 0 || z == resolution - 1)
+						height = Mathf.Min(height, waterY - hr * 0.025f);
+				}
 
 				// Сохраняем вершину и UV
 				int idx = z * resolution + x;

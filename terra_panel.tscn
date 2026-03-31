@@ -103,6 +103,14 @@ value = 0.35
 layout_mode = 2
 text = "Высота воды"
 
+[node name="HBoxContainerIsland" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="IslandCheck" type="CheckBox" parent="VBoxContainer/HBoxContainerIsland"]
+layout_mode = 2
+text = "Генерация острова"
+tooltip_text = "Края меша под уровнем воды: плавные «пляжи» или резкие обрывы задаются случайно при каждой генерации."
+
 [node name="HBoxContainer Resolution" type="HBoxContainer" parent="VBoxContainer"]
 layout_mode = 2
 
@@ -477,6 +485,23 @@ filters = ["*.png ; PNG Images", "*.jpg ; JPEG Images", "*.jpeg ; JPEG Images"]
 
 [node name="HSeparator3" type="HSeparator" parent="."]
 layout_mode = 2
+
+[node name="ScatterSection" type="VBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="ScatterTitle" type="Label" parent="ScatterSection"]
+layout_mode = 2
+text = "Объекты на карте (только случайная генерация)"
+horizontal_alignment = 1
+
+[node name="ScatterScroll" type="ScrollContainer" parent="ScatterSection"]
+layout_mode = 2
+size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 280)
+
+[node name="ScatterInner" type="VBoxContainer" parent="ScatterSection/ScatterScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="GenerateButton" type="Button" parent="."]
 layout_mode = 2

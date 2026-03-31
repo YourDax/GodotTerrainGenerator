@@ -1,7 +1,7 @@
 @tool
 extends VBoxContainer
 
-signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path)
+signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path, generate_island, scatter_settings)
 
 @onready var length_field = $"VBoxContainer/HBoxContainer X/Xbox"
 @onready var width_field = $"VBoxContainer/HBoxContainer Z/Zbox"
@@ -21,6 +21,8 @@ signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, res
 @onready var slope_blend_slider = $"VBoxContainer/HBoxContainer SlopeBlend/SlopeBlendSlider"
 @onready var slope_blend_value_label = $"VBoxContainer/HBoxContainer SlopeBlend/SlopeBlendValue"
 
+@onready var island_check = $"VBoxContainer/HBoxContainerIsland/IslandCheck"
+
 @onready var roads_check = $"HBoxContainerRoads/RoadsCheck"
 @onready var road_texture_path_edit = $"HBoxContainerRoadTexture/RoadTexturePath"
 @onready var road_texture_button = $"HBoxContainerRoadTexture/RoadTextureButton"
@@ -28,6 +30,20 @@ signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, res
 
 @onready var random_block = $"VBoxContainer"
 @onready var realmap_block = $"VBoxContainerRealMap"
+@onready var scatter_section = $"ScatterSection"
+@onready var scatter_inner = $"ScatterSection/ScatterScroll/ScatterInner"
+
+var _scatter_ui: Dictionary = {}
+var _scatter_file_dialog: FileDialog
+var _pending_scatter_cat: String = ""
+var _pending_scatter_row: int = 0
+
+const SCATTER_CATEGORIES := [
+	["trees", "Деревья"],
+	["bushes", "Кусты"],
+	["stones", "Камни"],
+	["other", "Другое"],
+]
 
 @onready var real_map_check = $"RealMapCheck"
 @onready var leftuplat_input = $"VBoxContainerRealMap/HBoxContainerLeftUpLat/LeftUpLat"
@@ -152,6 +168,12 @@ func _ready():
 	
 	# Настраиваем дороги
 	_setup_roads()
+	_setup_scatter_objects()
+	if scatter_section:
+		scatter_section.visible = not real_map_check.button_pressed
+	var island_row0 = get_node_or_null("VBoxContainer/HBoxContainerIsland")
+	if island_row0:
+		island_row0.visible = not real_map_check.button_pressed
 
 func _setup_coordinate_spinboxes():
 	# Настраиваем все поля координат для большей точности
@@ -181,6 +203,11 @@ func _on_real_map_toggled(pressed: bool):
 		_show_realmap_mode()
 	else:
 		_show_random_mode()
+	if scatter_section:
+		scatter_section.visible = not pressed
+	var island_row = get_node_or_null("VBoxContainer/HBoxContainerIsland")
+	if island_row:
+		island_row.visible = not pressed
 
 func _show_random_mode():
 	random_block.visible = true
@@ -289,6 +316,143 @@ func _on_road_texture_file_selected(path: String):
 		road_texture_path_edit.text = path
 		print("Путь к текстуре дороги: ", path)
 
+func _setup_scatter_objects() -> void:
+	if scatter_inner == null:
+		return
+	_scatter_file_dialog = FileDialog.new()
+	_scatter_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	_scatter_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	_scatter_file_dialog.filters = PackedStringArray([
+		"*.tscn ; Godot Scene",
+		"*.glb ; glTF Binary",
+		"*.gltf ; glTF",
+		"*.fbx ; FBX",
+		"*.obj ; Wavefront OBJ",
+		"*.dae ; Collada",
+		"*.blend ; Blender"
+	])
+	add_child(_scatter_file_dialog)
+	_scatter_file_dialog.file_selected.connect(_on_scatter_file_selected)
+	for item in SCATTER_CATEGORIES:
+		var cat_key: String = item[0]
+		var title: String = item[1]
+		_add_scatter_category_block(cat_key, title)
+
+func _add_scatter_category_block(cat_key: String, title: String) -> void:
+	var sep := HSeparator.new()
+	scatter_inner.add_child(sep)
+	var row0 := HBoxContainer.new()
+	var chk := CheckBox.new()
+	chk.text = title
+	chk.tooltip_text = "Случайно разместить объекты этого типа по сушe (не на воде и не на дорогах)."
+	row0.add_child(chk)
+	scatter_inner.add_child(row0)
+	var box := VBoxContainer.new()
+	box.visible = false
+	scatter_inner.add_child(box)
+	chk.toggled.connect(func(on: bool): box.visible = on)
+	var row_count := HBoxContainer.new()
+	var lbl_c := Label.new()
+	lbl_c.text = "Количество"
+	lbl_c.custom_minimum_size.x = 120
+	var spin_count := SpinBox.new()
+	spin_count.min_value = 0
+	spin_count.max_value = 5000
+	spin_count.value = 20
+	spin_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_count.add_child(lbl_c)
+	row_count.add_child(spin_count)
+	box.add_child(row_count)
+	var row_var := HBoxContainer.new()
+	var lbl_v := Label.new()
+	lbl_v.text = "Вариантов моделей"
+	lbl_v.custom_minimum_size.x = 120
+	var spin_variants := SpinBox.new()
+	spin_variants.min_value = 1
+	spin_variants.max_value = 16
+	spin_variants.value = 1
+	spin_variants.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_var.add_child(lbl_v)
+	row_var.add_child(spin_variants)
+	box.add_child(row_var)
+	var rows_parent := VBoxContainer.new()
+	box.add_child(rows_parent)
+	_scatter_ui[cat_key] = {
+		"check": chk,
+		"count": spin_count,
+		"variants": spin_variants,
+		"rows_parent": rows_parent,
+		"rows": []
+	}
+	spin_variants.value_changed.connect(func(_v: float) -> void: _rebuild_scatter_rows(cat_key))
+	_rebuild_scatter_rows(cat_key)
+
+func _rebuild_scatter_rows(cat_key: String) -> void:
+	var ui: Dictionary = _scatter_ui.get(cat_key, {})
+	if ui.is_empty():
+		return
+	var rows_parent: VBoxContainer = ui["rows_parent"]
+	var spin_variants: SpinBox = ui["variants"]
+	while rows_parent.get_child_count() > 0:
+		var c: Node = rows_parent.get_child(0)
+		rows_parent.remove_child(c)
+		c.free()
+	ui["rows"] = []
+	var n: int = int(spin_variants.value)
+	for i in n:
+		var row := HBoxContainer.new()
+		var le := LineEdit.new()
+		le.placeholder_text = "res://... или файл модели"
+		le.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var btn := Button.new()
+		btn.text = "Обзор..."
+		var idx := i
+		btn.pressed.connect(func() -> void:
+			_pending_scatter_cat = cat_key
+			_pending_scatter_row = idx
+			_scatter_file_dialog.popup_centered()
+		)
+		row.add_child(le)
+		row.add_child(btn)
+		rows_parent.add_child(row)
+		ui["rows"].append({"line": le, "button": btn})
+
+func _on_scatter_file_selected(path: String) -> void:
+	var ui: Dictionary = _scatter_ui.get(_pending_scatter_cat, {})
+	if ui.is_empty():
+		return
+	var rows: Array = ui["rows"]
+	if _pending_scatter_row < 0 or _pending_scatter_row >= rows.size():
+		return
+	var row: Dictionary = rows[_pending_scatter_row]
+	var le: LineEdit = row["line"]
+	le.text = path
+
+func _build_scatter_settings() -> Dictionary:
+	var out := {}
+	for item in SCATTER_CATEGORIES:
+		var cat_key: String = item[0]
+		if not _scatter_ui.has(cat_key):
+			continue
+		var ui: Dictionary = _scatter_ui[cat_key]
+		var chk: CheckBox = ui["check"]
+		if not chk.button_pressed:
+			continue
+		var paths: PackedStringArray = PackedStringArray()
+		for row in ui["rows"]:
+			var le: LineEdit = row["line"]
+			var t: String = le.text.strip_edges()
+			if t != "":
+				paths.append(t)
+		if paths.is_empty():
+			continue
+		out[cat_key] = {
+			"enabled": true,
+			"count": int(ui["count"].value),
+			"paths": paths
+		}
+	return out
+
 func _on_generate_button_pressed() -> void:
 	var leftuplat := float(leftuplat_input.value)
 	var leftuplng := float(leftuplng_input.value)
@@ -300,6 +464,12 @@ func _on_generate_button_pressed() -> void:
 	var slope_blend = float(slope_blend_slider.value) if slope_blend_slider else 0.5
 	var generate_roads = roads_check.button_pressed if roads_check else false
 	var road_texture_path = road_texture_path_edit.text if road_texture_path_edit else ""
+	var scatter_settings: Dictionary = {}
+	var generate_island := false
+	if not real_map_check.button_pressed:
+		scatter_settings = _build_scatter_settings()
+		if island_check:
+			generate_island = island_check.button_pressed
 	emit_signal("generate_pressed",
 		int(length_field.value),
 		int(width_field.value),
@@ -317,4 +487,6 @@ func _on_generate_button_pressed() -> void:
 		texture_mode,
 		slope_blend,
 		generate_roads,
-		road_texture_path)
+		road_texture_path,
+		generate_island,
+		scatter_settings)

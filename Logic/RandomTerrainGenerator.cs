@@ -9,7 +9,9 @@ public partial class RandomTerrainGenerator : Node
 		int length, int width,
 		float minHeight, float maxHeight,
 		int resolution,
-		float smoothing = 1.0f
+		float smoothing = 1.0f,
+		bool generateIsland = false,
+		float waterLevel01 = 0.35f
 	)
 	{
 		// Вычисляем размер карты для адаптивной генерации
@@ -58,6 +60,29 @@ public partial class RandomTerrainGenerator : Node
 			FractalGain = 0.4f
 		};
 
+		FastNoiseLite coastNoise = null;
+		float islandCoastWidth = 0.2f;
+		float islandCliffExp = 1f;
+		float islandNoiseAmp = 0.06f;
+		float islandSeabedFrac = 0.18f;
+		if (generateIsland)
+		{
+			coastNoise = new FastNoiseLite
+			{
+				NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
+				Frequency = 0.08f,
+				Seed = (int)GD.Randi() + 9001,
+				FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
+				FractalOctaves = 2,
+				FractalLacunarity = 2.0f,
+				FractalGain = 0.45f
+			};
+			islandCoastWidth = Mathf.Lerp(0.10f, 0.32f, GD.Randf());
+			islandCliffExp = Mathf.Lerp(0.45f, 2.9f, GD.Randf());
+			islandNoiseAmp = Mathf.Lerp(0.025f, 0.11f, GD.Randf());
+			islandSeabedFrac = Mathf.Lerp(0.14f, 0.28f, GD.Randf());
+		}
+
 		// Генерация меша через MeshBuilder с переданными шумами
 		return MeshBuilder.BuildHeightMesh(
 			length, width,
@@ -66,7 +91,14 @@ public partial class RandomTerrainGenerator : Node
 			baseNoise,
 			hillNoise,
 			detailNoise,
-			smoothing
+			smoothing,
+			generateIsland,
+			waterLevel01,
+			islandCoastWidth,
+			islandCliffExp,
+			islandNoiseAmp,
+			islandSeabedFrac,
+			coastNoise
 		);
 	}
 

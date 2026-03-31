@@ -18,7 +18,7 @@ func _exit_tree():
 	panel.free()
 
 func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_mode,
-		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path):
+		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path, generate_island, scatter_settings):
 	var selection = get_editor_interface().get_selection()
 	var selected_nodes = selection.get_selected_nodes()
 
@@ -81,7 +81,9 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 		texture_mode,
 		slope_blend,
 		generate_roads,
-		road_texture_path
+		road_texture_path,
+		generate_island,
+		scatter_settings
 	)
 	
 	print("Метод Generate вызван")

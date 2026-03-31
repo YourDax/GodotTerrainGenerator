@@ -24,7 +24,9 @@ public partial class TerrainGenerator : Node3D
 		int textureMode = 0,
 		float slopeBlend = 0.5f,
 		bool generateRoads = false,
-		string roadTexturePath = ""
+		string roadTexturePath = "",
+		bool generateIsland = false,
+		Godot.Collections.Dictionary scatterSettings = null
 	)
 	{
 		GD.Print("═══════════════════════════════════════");
@@ -56,7 +58,9 @@ public partial class TerrainGenerator : Node3D
 				textureMode,
 				slopeBlend,
 				generateRoads,
-				roadTexturePath
+				roadTexturePath,
+				generateIsland,
+				scatterSettings
 			);
 		}
 	}
@@ -71,7 +75,9 @@ public partial class TerrainGenerator : Node3D
 		int textureMode,
 		float slopeBlend,
 		bool generateRoads,
-		string roadTexturePath
+		string roadTexturePath,
+		bool generateIsland,
+		Godot.Collections.Dictionary scatterSettings
 	)
 	{
 		GD.Print("🚀 GenerateRandomTerrainAsync начат");
@@ -88,7 +94,9 @@ public partial class TerrainGenerator : Node3D
 			length, width,
 			minHeight, maxHeight,
 			resolution,
-			smoothing
+			smoothing,
+			generateIsland,
+			waterLevel
 		);
 		
 		if (mesh == null)
@@ -200,6 +208,26 @@ public partial class TerrainGenerator : Node3D
 
 		// Дороги теперь накладываются как текстура поверх основной текстуры террейна
 		// Генерация маски дорог происходит выше, перед применением текстур
+
+		if (scatterSettings != null && scatterSettings.Count > 0)
+		{
+			EmitSignal(SignalName.ProgressUpdated, 92.0f, "Размещение объектов...");
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			ObjectScatterPlacer.Scatter(
+				this,
+				meshInstance,
+				length,
+				width,
+				resolution,
+				minHeight,
+				maxHeight,
+				waterLevel,
+				roadMask,
+				texRes,
+				scatterSettings,
+				Owner
+			);
+		}
 
 		EmitSignal(SignalName.ProgressUpdated, 100.0f, "Генерация завершена!");
 	}
