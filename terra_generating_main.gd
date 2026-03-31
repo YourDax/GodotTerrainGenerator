@@ -18,7 +18,7 @@ func _exit_tree():
 	panel.free()
 
 func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_mode,
-		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend):
+		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path):
 	var selection = get_editor_interface().get_selection()
 	var selected_nodes = selection.get_selected_nodes()
 
@@ -56,7 +56,18 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 	# Вызываем метод Generate напрямую
 	# В Godot 4 C# методы с параметрами по умолчанию могут не определяться через has_method
 	print("Вызываю TerrainGenerator.Generate() из C#...")
-	terrain_instance.Generate(
+	print("Параметры: length=", length, " width=", width, " real_map_mode=", real_map_mode, " generate_roads=", generate_roads)
+	
+	# Проверяем, что terrain_instance существует
+	if terrain_instance == null:
+		push_error("TerrainGenerator не был создан!")
+		return
+	
+	# Проверяем, есть ли метод (может не работать для C# методов с параметрами по умолчанию)
+	# Но попробуем вызвать напрямую
+	
+	# Вызываем метод через call() для совместимости с C# методами с параметрами по умолчанию
+	terrain_instance.call("Generate",
 		length, width,
 		min_h, max_h,
 		sand_grass, grass_rock,
@@ -68,8 +79,12 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 		resolution_mode,
 		smoothing,
 		texture_mode,
-		slope_blend
+		slope_blend,
+		generate_roads,
+		road_texture_path
 	)
+	
+	print("Метод Generate вызван")
 	
 	# Для случайной генерации закрываем окно сразу (синхронная операция)
 	if not real_map_mode:

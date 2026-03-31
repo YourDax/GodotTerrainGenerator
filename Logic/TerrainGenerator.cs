@@ -22,10 +22,16 @@ public partial class TerrainGenerator : Node3D
 		int resolutionMode = 0,
 		float smoothing = 1.0f,
 		int textureMode = 0,
-		float slopeBlend = 0.5f
+		float slopeBlend = 0.5f,
+		bool generateRoads = false,
+		string roadTexturePath = ""
 	)
 	{
+		GD.Print("═══════════════════════════════════════");
 		GD.Print("C# Generate() вызван из GDScript!");
+		GD.Print($"Параметры: length={length}, width={width}, resolution={resolution}");
+		GD.Print($"realMapMode={realMapMode}, generateRoads={generateRoads}");
+		GD.Print("═══════════════════════════════════════");
 		if (realMapMode)
 		{
 			// Асинхронный вызов - запускаем в фоне
@@ -48,7 +54,9 @@ public partial class TerrainGenerator : Node3D
 				savePath,
 				smoothing,
 				textureMode,
-				slopeBlend
+				slopeBlend,
+				generateRoads,
+				roadTexturePath
 			);
 		}
 	}
@@ -61,21 +69,35 @@ public partial class TerrainGenerator : Node3D
 		string savePath,
 		float smoothing,
 		int textureMode,
-		float slopeBlend
+		float slopeBlend,
+		bool generateRoads,
+		string roadTexturePath
 	)
 	{
+		GD.Print("🚀 GenerateRandomTerrainAsync начат");
+		
 		// Обновляем прогресс
 		EmitSignal(SignalName.ProgressUpdated, 10.0f, "Генерация меша...");
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		
+		GD.Print("📦 Создаю RandomTerrainGenerator...");
 		var random = new RandomTerrainGenerator();
 
+		GD.Print($"🔨 Генерирую меш: length={length}, width={width}, resolution={resolution}");
 		Mesh mesh = random.GenerateMesh(
 			length, width,
 			minHeight, maxHeight,
 			resolution,
 			smoothing
 		);
+		
+		if (mesh == null)
+		{
+			GD.PrintErr("❌ Меш не был создан!");
+			return;
+		}
+		
+		GD.Print($"✅ Меш создан, поверхностей: {mesh.GetSurfaceCount()}");
 
 		EmitSignal(SignalName.ProgressUpdated, 30.0f, "Создание экземпляра меша...");
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -95,7 +117,59 @@ public partial class TerrainGenerator : Node3D
 
 		EmitSignal(SignalName.ProgressUpdated, 50.0f, "Применение текстур...");
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
+		
+		// Вычисляем разрешение текстуры, которое будет использоваться в TerrainTexturePainter
+		// Это должно совпадать с разрешением, которое вычисляется в TerrainTexturePainter
+		int maxMapSize = Mathf.Max(length, width);
+		int texRes = 1024; // Базовое разрешение
+		if (maxMapSize > 500) texRes = 4096;
+		else if (maxMapSize > 300) texRes = 3072;
+		else if (maxMapSize > 200) texRes = 2048;
+		else if (maxMapSize > 100) texRes = 1536;
+		else if (maxMapSize > 50) texRes = 1280;
+		
+		// Генерируем маску дорог, если включена опция
+		float[,] roadMask = null;
+		if (generateRoads)
+		{
+			EmitSignal(SignalName.ProgressUpdated, 55.0f, "Генерация маски дорог...");
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			
+			// Вычисляем пропорциональную ширину дороги
+			float roadWidth = Mathf.Max(length, width) * 0.02f; // 2% от максимального размера
+			roadWidth = Mathf.Clamp(roadWidth, 1.0f, 5.0f); // Ограничиваем от 1 до 5 единиц
+			
+			GD.Print($"🛣️ Генерация маски дорог с разрешением: {texRes}x{texRes}");
+			
+			roadMask = RoadGenerator.GenerateRoadMask(
+				meshInstance,
+				length,
+				width,
+				minHeight,
+				maxHeight,
+				resolution,
+				texRes,
+				roadWidth,
+				waterLevel,
+				sandGrass,
+				grassRock
+			);
+			
+			if (roadMask != null)
+			{
+				// Проверяем, сколько пикселей в маске имеют значение > 0
+				int roadPixels = 0;
+				for (int x = 0; x < texRes; x++)
+				{
+					for (int z = 0; z < texRes; z++)
+					{
+						if (roadMask[x, z] > 0.0f) roadPixels++;
+					}
+				}
+				GD.Print($"✅ Маска дорог создана: {texRes}x{texRes}, пикселей дорог: {roadPixels}");
+			}
+		}
+		
 		TerrainTexturePainter.ApplyHeightTexture(
 			meshInstance,
 			minHeight,
@@ -109,7 +183,9 @@ public partial class TerrainGenerator : Node3D
 			length,
 			width,
 			textureMode,
-			slopeBlend
+			slopeBlend,
+			roadMask,
+			roadTexturePath
 		);
 
 		EmitSignal(SignalName.ProgressUpdated, 80.0f, "Создание воды...");
@@ -121,6 +197,9 @@ public partial class TerrainGenerator : Node3D
 
 		AddChild(water);
 		if (Owner != null) water.Owner = Owner;
+
+		// Дороги теперь накладываются как текстура поверх основной текстуры террейна
+		// Генерация маски дорог происходит выше, перед применением текстур
 
 		EmitSignal(SignalName.ProgressUpdated, 100.0f, "Генерация завершена!");
 	}

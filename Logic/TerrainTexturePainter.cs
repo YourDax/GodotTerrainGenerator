@@ -30,7 +30,11 @@ public static class TerrainTexturePainter
 		// Режим генерации текстур: 0 = по высоте, 1 = камень на склонах
 		int textureMode = 0,
 		// Плавность перехода на склонах (0.0 = резкий, 1.0 = плавный)
-		float slopeBlend = 0.5f
+		float slopeBlend = 0.5f,
+		// Маска дорог (2D массив float от 0 до 1, где 1 означает наличие дороги)
+		float[,] roadMask = null,
+		// Путь к текстуре дороги
+		string roadPath = null
 	)
 	{
 		// Проверяем, есть ли у MeshInstance3D Mesh
@@ -77,6 +81,64 @@ public static class TerrainTexturePainter
 		{
 			GD.PrintErr($"Не удалось загрузить текстуру камня по пути: {rockPath}");
 			return;
+		}
+		
+		// Загружаем текстуру дороги, если указана маска дорог
+		// ВАЖНО: Загружаем текстуру даже если roadPath пустой - используем путь по умолчанию
+		Image roadImg = null;
+		if (roadMask != null)
+		{
+			roadImg = new Image();
+			bool loaded = false;
+			
+			// Список возможных путей для текстуры дороги
+			var possibleRoadPaths = new System.Collections.Generic.List<string>();
+			
+			// Если путь указан пользователем, добавляем его первым
+			if (!string.IsNullOrEmpty(roadPath))
+			{
+				possibleRoadPaths.Add(roadPath);
+			}
+			
+			// Добавляем пути по умолчанию (в приоритетном порядке)
+			// Основной путь по умолчанию - res://addons/terragenerating/Texture/road.jpg
+			possibleRoadPaths.Add("res://addons/terragenerating/Texture/road.jpg");
+			possibleRoadPaths.Add("res://addons/terragenerating/Texture/road.png");
+			possibleRoadPaths.Add("res://Texture/road.jpg");
+			possibleRoadPaths.Add("res://Texture/road.png");
+			possibleRoadPaths.Add("res://textures/road.jpg");
+			possibleRoadPaths.Add("res://textures/road.png");
+			
+			// Пробуем загрузить текстуру из каждого пути
+			foreach (string path in possibleRoadPaths)
+			{
+				GD.Print($"🔍 Пробую загрузить текстуру дороги из: {path}");
+				if (ResourceLoader.Exists(path))
+				{
+					GD.Print($"✅ Путь существует: {path}");
+					if (roadImg.Load(path) == Error.Ok && roadImg.GetWidth() > 0)
+					{
+						GD.Print($"✅ Текстура дороги загружена из: {path} ({roadImg.GetWidth()}x{roadImg.GetHeight()})");
+						loaded = true;
+						break;
+					}
+					else
+					{
+						GD.Print($"⚠️ Путь существует, но не удалось загрузить изображение: {path}");
+					}
+				}
+				else
+				{
+					GD.Print($"❌ Путь не существует: {path}");
+				}
+			}
+			
+			if (!loaded)
+			{
+				GD.PrintErr("❌ Не удалось загрузить текстуру дороги из всех попыток!");
+				GD.PrintErr("❌ Дороги не будут отображаться без текстуры!");
+				roadImg = null;
+			}
 		}
 
 		// Получаем массивы вершин и UV из первой поверхности ArrayMesh
@@ -188,6 +250,73 @@ public static class TerrainTexturePainter
 		}
 		
 		GD.Print($"📐 Размер карты: {mapSizeX}x{mapSizeZ}, Разрешение текстуры: {texRes}x{texRes}");
+		
+		// Проверяем маску дорог, если она передана
+		if (roadMask != null)
+		{
+			int maskWidth = roadMask.GetLength(0);
+			int maskHeight = roadMask.GetLength(1);
+			GD.Print($"🛣️ Маска дорог получена: {maskWidth}x{maskHeight}, ожидается: {texRes}x{texRes}");
+			
+			// Если размеры не совпадают, это проблема
+			if (maskWidth != texRes || maskHeight != texRes)
+			{
+				GD.PrintErr($"❌ КРИТИЧЕСКАЯ ОШИБКА: Размер маски дорог ({maskWidth}x{maskHeight}) не совпадает с разрешением текстуры ({texRes}x{texRes})!");
+				GD.PrintErr("❌ Дороги не будут отображаться корректно!");
+			}
+			
+			// Подсчитываем количество пикселей дорог в маске
+			int roadPixels = 0;
+			float maxMaskValue = 0.0f;
+			float minMaskValue = float.MaxValue;
+			// Проверяем всю маску для точной статистики
+			for (int mx = 0; mx < maskWidth; mx++)
+			{
+				for (int mz = 0; mz < maskHeight; mz++)
+				{
+					float val = roadMask[mx, mz];
+					if (val > 0.001f)
+					{
+						roadPixels++;
+						if (val > maxMaskValue) maxMaskValue = val;
+						if (val < minMaskValue) minMaskValue = val;
+					}
+				}
+			}
+			GD.Print($"🛣️ Статистика маски дорог: {roadPixels} пикселей с дорогами из {maskWidth * maskHeight} всего");
+			GD.Print($"🛣️ Диапазон значений маски: min={minMaskValue:F3}, max={maxMaskValue:F3}");
+			
+			// Проверяем несколько конкретных точек для отладки
+			if (roadPixels > 0)
+			{
+				int sampleCount = 0;
+				for (int mx = 0; mx < maskWidth && sampleCount < 5; mx += maskWidth / 10)
+				{
+					for (int mz = 0; mz < maskHeight && sampleCount < 5; mz += maskHeight / 10)
+					{
+						if (roadMask[mx, mz] > 0.001f)
+						{
+							GD.Print($"🛣️ Пример дороги на [{mx},{mz}]: значение={roadMask[mx, mz]:F3}");
+							sampleCount++;
+						}
+					}
+				}
+			}
+			else
+			{
+				GD.PrintErr("❌ В маске дорог нет ни одного пикселя с дорогами!");
+			}
+		}
+		
+		// Проверяем загрузку текстуры дороги
+		if (roadImg != null)
+		{
+			GD.Print($"✅ Текстура дороги загружена: {roadImg.GetWidth()}x{roadImg.GetHeight()}");
+		}
+		else if (roadMask != null)
+		{
+			GD.Print("⚠️ Маска дорог передана, но текстура дороги не загружена!");
+		}
 
 		// Создаем пустое изображение с форматом RGBA8
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
@@ -435,8 +564,50 @@ public static class TerrainTexturePainter
 					finalColor = grassColor.Lerp(rockColor, rockAmount);
 					}
 				}
+				
+				// ВАЖНО: Накладываем текстуру дороги ПОСЛЕ всех вычислений основных текстур
+				// Дороги должны быть видны четко, без размытия с основными текстурами
+				if (roadMask != null && roadImg != null)
+				{
+					// Проверяем границы маски
+					if (x < roadMask.GetLength(0) && z < roadMask.GetLength(1))
+					{
+						float maskValue = roadMask[x, z];
+						if (maskValue > 0.001f) // Используем небольшой порог, чтобы не пропустить слабые значения
+						{
+							// Получаем цвет дороги из текстуры с tiling
+							// Используем то же значение tileScale, что и для основных текстур
+							Color roadColor = GetSample(roadImg, x, z, texRes, tileScale);
+							
+							// ВАЖНО: Дороги должны накладываться с полной силой там, где maskValue близко к 1.0
+							// Используем более агрессивное смешивание для лучшей видимости дорог
+							// Применяем степенную функцию для усиления маски
+							float roadBlend = Mathf.Pow(maskValue, 0.7f); // Усиливаем маску
+							roadBlend = Mathf.Clamp(roadBlend, 0.0f, 1.0f);
+							
+							// Смешиваем основную текстуру с дорогой
+							// Используем более сильное смешивание для дорог
+							finalColor = finalColor.Lerp(roadColor, roadBlend);
+							
+							// Отладочный вывод для первых нескольких пикселей дорог
+							if (x < 10 && z < 10 && maskValue > 0.1f)
+							{
+								GD.Print($"🛣️ Дорога на [{x},{z}]: maskValue={maskValue:F3}, roadBlend={roadBlend:F3}, roadColor={roadColor}, finalColor={finalColor}");
+							}
+						}
+					}
+					else
+					{
+						// Отладочный вывод, если координаты выходят за границы
+						if (x < 5 && z < 5)
+						{
+							GD.Print($"⚠️ Координаты [{x},{z}] выходят за границы маски {roadMask.GetLength(0)}x{roadMask.GetLength(1)}");
+						}
+					}
+				}
 
 				// Устанавливаем рассчитанный цвет в итоговое изображение
+				// ВАЖНО: Это происходит ПОСЛЕ наложения дорог, чтобы дороги были поверх всего
 				finalImg.SetPixel(x, z, finalColor);
 			}
 		}

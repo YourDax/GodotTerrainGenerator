@@ -1,7 +1,7 @@
 @tool
 extends VBoxContainer
 
-signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend)
+signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path)
 
 @onready var length_field = $"VBoxContainer/HBoxContainer X/Xbox"
 @onready var width_field = $"VBoxContainer/HBoxContainer Z/Zbox"
@@ -20,6 +20,11 @@ signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, res
 @onready var slope_blend_container = $"VBoxContainer/HBoxContainer SlopeBlend"
 @onready var slope_blend_slider = $"VBoxContainer/HBoxContainer SlopeBlend/SlopeBlendSlider"
 @onready var slope_blend_value_label = $"VBoxContainer/HBoxContainer SlopeBlend/SlopeBlendValue"
+
+@onready var roads_check = $"HBoxContainerRoads/RoadsCheck"
+@onready var road_texture_path_edit = $"HBoxContainerRoadTexture/RoadTexturePath"
+@onready var road_texture_button = $"HBoxContainerRoadTexture/RoadTextureButton"
+@onready var road_texture_file_dialog = $"HBoxContainerRoadTexture/RoadTextureFileDialog"
 
 @onready var random_block = $"VBoxContainer"
 @onready var realmap_block = $"VBoxContainerRealMap"
@@ -144,6 +149,9 @@ func _ready():
 	
 	# Изначально показываем поле границы трава-камень
 	_update_texture_mode_ui()
+	
+	# Настраиваем дороги
+	_setup_roads()
 
 func _setup_coordinate_spinboxes():
 	# Настраиваем все поля координат для большей точности
@@ -266,6 +274,21 @@ func _update_texture_mode_ui():
 		# Показываем поле "Плавность перехода" только для режима на склонах (1)
 		slope_blend_container.visible = (texture_mode_selector.selected == 1)
 
+func _setup_roads():
+	if road_texture_button:
+		road_texture_button.pressed.connect(_on_road_texture_button_pressed)
+	if road_texture_file_dialog:
+		road_texture_file_dialog.file_selected.connect(_on_road_texture_file_selected)
+
+func _on_road_texture_button_pressed():
+	if road_texture_file_dialog:
+		road_texture_file_dialog.popup_centered()
+
+func _on_road_texture_file_selected(path: String):
+	if road_texture_path_edit:
+		road_texture_path_edit.text = path
+		print("Путь к текстуре дороги: ", path)
+
 func _on_generate_button_pressed() -> void:
 	var leftuplat := float(leftuplat_input.value)
 	var leftuplng := float(leftuplng_input.value)
@@ -275,6 +298,8 @@ func _on_generate_button_pressed() -> void:
 	var smoothing = float(smoothing_slider.value) if smoothing_slider else 1.0
 	var texture_mode = texture_mode_selector.selected if texture_mode_selector else 0
 	var slope_blend = float(slope_blend_slider.value) if slope_blend_slider else 0.5
+	var generate_roads = roads_check.button_pressed if roads_check else false
+	var road_texture_path = road_texture_path_edit.text if road_texture_path_edit else ""
 	emit_signal("generate_pressed",
 		int(length_field.value),
 		int(width_field.value),
@@ -290,4 +315,6 @@ func _on_generate_button_pressed() -> void:
 		resolution_mode,
 		smoothing,
 		texture_mode,
-		slope_blend)
+		slope_blend,
+		generate_roads,
+		road_texture_path)

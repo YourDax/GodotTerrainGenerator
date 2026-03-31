@@ -449,6 +449,35 @@ text = "🗺️ Режим реальной карты"
 [node name="HSeparator2" type="HSeparator" parent="."]
 layout_mode = 2
 
+[node name="HBoxContainerRoads" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="RoadsCheck" type="CheckBox" parent="HBoxContainerRoads"]
+layout_mode = 2
+text = "🛣️ Генерировать дороги"
+
+[node name="HBoxContainerRoadTexture" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="RoadTexturePath" type="LineEdit" parent="HBoxContainerRoadTexture"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Путь к текстуре дороги (опционально)"
+
+[node name="RoadTextureButton" type="Button" parent="HBoxContainerRoadTexture"]
+layout_mode = 2
+text = "Обзор..."
+
+[node name="RoadTextureFileDialog" type="FileDialog" parent="HBoxContainerRoadTexture"]
+file_mode = 0
+access = 0
+current_dir = "res://"
+current_path = "res://addons/terragenerating/Texture/road.png"
+filters = ["*.png ; PNG Images", "*.jpg ; JPEG Images", "*.jpeg ; JPEG Images"]
+
+[node name="HSeparator3" type="HSeparator" parent="."]
+layout_mode = 2
+
 [node name="GenerateButton" type="Button" parent="."]
 layout_mode = 2
 text = "✨ Создать ландшафт"
