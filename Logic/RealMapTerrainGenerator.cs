@@ -42,7 +42,7 @@ public static class RealMapTerrainGenerator
 
 	// Делегат для обновления прогресса
 	public delegate void ProgressCallback(float progress, string status);
-	
+
 	// Основной метод генерации рельефа
 	public static async Task<Node3D> Generate(
 		Node3D parent,
@@ -60,7 +60,7 @@ public static class RealMapTerrainGenerator
 		GD.Print($"Input bounds raw: NW({leftUpLat.ToString(CultureInfo.InvariantCulture)},{leftUpLng.ToString(CultureInfo.InvariantCulture)}) SE({rightDownLat.ToString(CultureInfo.InvariantCulture)},{rightDownLng.ToString(CultureInfo.InvariantCulture)})");
 
 		progressCallback?.Invoke(5.0f, "Загрузка высотных данных...");
-		
+
 		// Загружаем матрицу высот
 		float[,] heights = await RequestHeights(leftUpLat, leftUpLng, rightDownLat, rightDownLng, resolutionMode, progressCallback);
 
@@ -75,7 +75,7 @@ public static class RealMapTerrainGenerator
 		PrintStats("После загрузки", heights);
 
 		progressCallback?.Invoke(70.0f, "Обработка данных...");
-		
+
 		// Заполняем отсутствующие значения
 		FillMissingHeights(heights);
 
@@ -93,7 +93,7 @@ public static class RealMapTerrainGenerator
 		}
 
 		progressCallback?.Invoke(80.0f, "Создание экземпляра меша...");
-		
+
 		// Создаём MeshInstance3D
 		var meshInstance = new MeshInstance3D
 		{
@@ -133,7 +133,7 @@ public static class RealMapTerrainGenerator
 		);
 
 		GD.Print("✅ Текстуры применены");
-		
+
 		progressCallback?.Invoke(100.0f, "Генерация завершена!");
 
 
@@ -290,10 +290,10 @@ public static class RealMapTerrainGenerator
 
 			while (!success && retryCount < MAX_RETRIES)
 			{
-				try
-				{
-					// Выполняем GET запрос
-					resp = await http.GetAsync(url);
+			try
+			{
+				// Выполняем GET запрос
+				resp = await http.GetAsync(url);
 					
 					// Проверка статуса
 					if (resp.IsSuccessStatusCode)
@@ -330,9 +330,9 @@ public static class RealMapTerrainGenerator
 						GD.Print($"🔄 Retrying request #{reqCount} in {RETRY_DELAY_MS * (retryCount + 1) / 1000.0} seconds...");
 						await Task.Delay(RETRY_DELAY_MS * (retryCount + 1)); // Увеличиваем задержку с каждой попыткой
 					}
-				}
-				catch (Exception ex)
-				{
+			}
+			catch (Exception ex)
+			{
 					// Другие ошибки
 					GD.PrintErr($"❌ Unexpected error on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}: {ex.Message}");
 					retryCount++;
@@ -448,7 +448,7 @@ public static class RealMapTerrainGenerator
 			if (idx < points.Count && reqCount < maxAllowedRequests)
 			{
 				GD.Print($"⏸️ Pausing {REQUEST_DELAY_MS / 1000.0} seconds before next request...");
-				await Task.Delay(REQUEST_DELAY_MS);
+			await Task.Delay(REQUEST_DELAY_MS);
 			}
 		}
 

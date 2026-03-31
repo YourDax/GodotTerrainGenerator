@@ -145,7 +145,7 @@ public static class MeshBuilder
 					for (int x = 1; x < resolution - 1; x++)
 					{
 						int idx = z * resolution + x;
-						
+
 						// Берем среднее значение высот соседних вершин
 						float avgHeight = (
 							vertices[idx - 1].Y + // левый
@@ -170,7 +170,7 @@ public static class MeshBuilder
 			// Обновляем вершины в SurfaceTool
 			st = new SurfaceTool();
 			st.Begin(Mesh.PrimitiveType.Triangles);
-			
+
 			// Пересоздаем треугольники с обновленными вершинами
 			for (int z = 0; z < resolution - 1; z++)
 			{
