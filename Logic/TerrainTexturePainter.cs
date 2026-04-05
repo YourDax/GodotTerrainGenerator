@@ -1,10 +1,15 @@
 using Godot;
 using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 [Tool]
 public static class TerrainTexturePainter
 {
-	public static void ApplyHeightTexture(
+	private const bool VerboseTextureLogs = false;
+	private static readonly Dictionary<string, Image> ImageCache = new();
+
+	public static async Task ApplyHeightTexture(
 		// Меш, на который накладываем текстуру
 		MeshInstance3D meshInstance,
 		// Минимальная высота меша
@@ -34,9 +39,14 @@ public static class TerrainTexturePainter
 		// Маска дорог (2D массив float от 0 до 1, где 1 означает наличие дороги)
 		float[,] roadMask = null,
 		// Путь к текстуре дороги
-		string roadPath = null
+		string roadPath = null,
+		Action<float, string> progressCallback = null,
+		Func<bool> cancelRequested = null
 	)
 	{
+		if (cancelRequested != null && cancelRequested())
+			return;
+		progressCallback?.Invoke(52.0f, "Подготовка текстур...");
 		// Проверяем, есть ли у MeshInstance3D Mesh
 		if (meshInstance.Mesh == null)
 		{
@@ -59,29 +69,12 @@ public static class TerrainTexturePainter
 			return;
 		}
 
-		// Загружаем текстуру песка
-		Image sandImg = new Image();
-		if (sandImg.Load(sandPath) != Error.Ok)
-		{
-			GD.PrintErr($"Не удалось загрузить текстуру песка по пути: {sandPath}");
-			return;
-		}
-
-		// Загружаем текстуру травы
-		Image grassImg = new Image();
-		if (grassImg.Load(grassPath) != Error.Ok)
-		{
-			GD.PrintErr($"Не удалось загрузить текстуру травы по пути: {grassPath}");
-			return;
-		}
-
-		// Загружаем текстуру камня
-		Image rockImg = new Image();
-		if (rockImg.Load(rockPath) != Error.Ok)
-		{
-			GD.PrintErr($"Не удалось загрузить текстуру камня по пути: {rockPath}");
-			return;
-		}
+		Image sandImg = LoadImageCached(sandPath, "песка");
+		if (sandImg == null) return;
+		Image grassImg = LoadImageCached(grassPath, "травы");
+		if (grassImg == null) return;
+		Image rockImg = LoadImageCached(rockPath, "камня");
+		if (rockImg == null) return;
 		
 		// Загружаем текстуру дороги, если указана маска дорог
 		// ВАЖНО: Загружаем текстуру даже если roadPath пустой - используем путь по умолчанию
@@ -112,24 +105,16 @@ public static class TerrainTexturePainter
 			// Пробуем загрузить текстуру из каждого пути
 			foreach (string path in possibleRoadPaths)
 			{
-				GD.Print($"🔍 Пробую загрузить текстуру дороги из: {path}");
 				if (ResourceLoader.Exists(path))
 				{
-					GD.Print($"✅ Путь существует: {path}");
-					if (roadImg.Load(path) == Error.Ok && roadImg.GetWidth() > 0)
+					Image cachedRoad = LoadImageCached(path, "дороги");
+					if (cachedRoad != null && cachedRoad.GetWidth() > 0)
 					{
+						roadImg = cachedRoad;
 						GD.Print($"✅ Текстура дороги загружена из: {path} ({roadImg.GetWidth()}x{roadImg.GetHeight()})");
 						loaded = true;
 						break;
 					}
-					else
-					{
-						GD.Print($"⚠️ Путь существует, но не удалось загрузить изображение: {path}");
-					}
-				}
-				else
-				{
-					GD.Print($"❌ Путь не существует: {path}");
 				}
 			}
 			
@@ -229,6 +214,11 @@ public static class TerrainTexturePainter
 		float tileScale = TerraConfig.GetTileScaleForSize(maxMapSize);
 		float tileScaleX = tileScale * (mapSizeX / (float)maxMapSize);
 		float tileScaleZ = tileScale * (mapSizeZ / (float)maxMapSize);
+		var sandSampler = new TextureSampler(sandImg, texRes, tileScaleX, tileScaleZ);
+		var grassSampler = new TextureSampler(grassImg, texRes, tileScaleX, tileScaleZ);
+		var rockSampler = new TextureSampler(rockImg, texRes, tileScaleX, tileScaleZ);
+		TextureSampler roadSampler = roadImg != null ? new TextureSampler(roadImg, texRes, tileScaleX, tileScaleZ) : null;
+		float[,] normalizedSlopeMap = textureMode == 1 ? BuildNormalizedSlopeMap(heightMap, meshRes, maxHeight - minHeight) : null;
 		
 		GD.Print($"📐 Размер карты: {mapSizeX}x{mapSizeZ}, Разрешение текстуры: {texRes}x{texRes}");
 		GD.Print($"🧵 Тайлинг текстур: X={tileScaleX:F2}, Z={tileScaleZ:F2}, base={tileScale:F2}");
@@ -238,7 +228,8 @@ public static class TerrainTexturePainter
 		{
 			int maskWidth = roadMask.GetLength(0);
 			int maskHeight = roadMask.GetLength(1);
-			GD.Print($"🛣️ Маска дорог получена: {maskWidth}x{maskHeight}, ожидается: {texRes}x{texRes}");
+			if (VerboseTextureLogs)
+				GD.Print($"🛣️ Маска дорог получена: {maskWidth}x{maskHeight}, ожидается: {texRes}x{texRes}");
 			
 			// Если размеры не совпадают, это проблема
 			if (maskWidth != texRes || maskHeight != texRes)
@@ -247,51 +238,31 @@ public static class TerrainTexturePainter
 				GD.PrintErr("❌ Дороги не будут отображаться корректно!");
 			}
 			
-			// Подсчитываем количество пикселей дорог в маске
-			int roadPixels = 0;
-			float maxMaskValue = 0.0f;
-			float minMaskValue = float.MaxValue;
-			// Проверяем всю маску для точной статистики
-			for (int mx = 0; mx < maskWidth; mx++)
+			if (VerboseTextureLogs)
 			{
-				for (int mz = 0; mz < maskHeight; mz++)
+				int roadPixels = 0;
+				float maxMaskValue = 0.0f;
+				float minMaskValue = float.MaxValue;
+				for (int mx = 0; mx < maskWidth; mx++)
 				{
-					float val = roadMask[mx, mz];
-					if (val > 0.001f)
+					for (int mz = 0; mz < maskHeight; mz++)
 					{
-						roadPixels++;
-						if (val > maxMaskValue) maxMaskValue = val;
-						if (val < minMaskValue) minMaskValue = val;
-					}
-				}
-			}
-			GD.Print($"🛣️ Статистика маски дорог: {roadPixels} пикселей с дорогами из {maskWidth * maskHeight} всего");
-			GD.Print($"🛣️ Диапазон значений маски: min={minMaskValue:F3}, max={maxMaskValue:F3}");
-			
-			// Проверяем несколько конкретных точек для отладки
-			if (roadPixels > 0)
-			{
-				int sampleCount = 0;
-				for (int mx = 0; mx < maskWidth && sampleCount < 5; mx += maskWidth / 10)
-				{
-					for (int mz = 0; mz < maskHeight && sampleCount < 5; mz += maskHeight / 10)
-					{
-						if (roadMask[mx, mz] > 0.001f)
+						float val = roadMask[mx, mz];
+						if (val > 0.001f)
 						{
-							GD.Print($"🛣️ Пример дороги на [{mx},{mz}]: значение={roadMask[mx, mz]:F3}");
-							sampleCount++;
+							roadPixels++;
+							if (val > maxMaskValue) maxMaskValue = val;
+							if (val < minMaskValue) minMaskValue = val;
 						}
 					}
 				}
-			}
-			else
-			{
-				GD.PrintErr("❌ В маске дорог нет ни одного пикселя с дорогами!");
+				GD.Print($"🛣️ Статистика маски дорог: {roadPixels} пикселей с дорогами из {maskWidth * maskHeight} всего");
+				GD.Print($"🛣️ Диапазон значений маски: min={minMaskValue:F3}, max={maxMaskValue:F3}");
 			}
 		}
 		
 		// Проверяем загрузку текстуры дороги
-		if (roadImg != null)
+		if (roadImg != null && VerboseTextureLogs)
 		{
 			GD.Print($"✅ Текстура дороги загружена: {roadImg.GetWidth()}x{roadImg.GetHeight()}");
 		}
@@ -304,8 +275,14 @@ public static class TerrainTexturePainter
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
 
 		// Основной цикл по пикселям итоговой текстуры
+		int yieldEveryRows = Mathf.Clamp(texRes / 64, 8, 64);
 		for (int z = 0; z < texRes; z++)
 		{
+			if (cancelRequested != null && cancelRequested())
+			{
+				progressCallback?.Invoke(100.0f, "Генерация остановлена пользователем");
+				return;
+			}
 			for (int x = 0; x < texRes; x++)
 			{
 				// Преобразуем координаты пикселя в UV координаты (0..1)
@@ -348,9 +325,9 @@ public static class TerrainTexturePainter
 
 				// Получаем пиксели с раздельным тайлингом по X/Z, чтобы плотность
 				// текстуры была одинаковой на метр даже у вытянутых карт.
-				Color sandColor = GetSample(sandImg, x, z, texRes, tileScaleX, tileScaleZ);
-				Color grassColor = GetSample(grassImg, x, z, texRes, tileScaleX, tileScaleZ);
-				Color rockColor = GetSample(rockImg, x, z, texRes, tileScaleX, tileScaleZ);
+				Color sandColor = sandSampler.Sample(x, z);
+				Color grassColor = grassSampler.Sample(x, z);
+				Color rockColor = rockSampler.Sample(x, z);
 
 				Color finalColor;
 				
@@ -388,82 +365,8 @@ public static class TerrainTexturePainter
 				}
 				else
 				{
-					// Режим 1: Камень только на склонах гор
-					// Вычисляем градиент высоты для определения склонов
-					// Используем усреднение по большей области для более плавного результата
-					
-					float gradX = 0.0f, gradZ = 0.0f;
-					float gradXSum = 0.0f, gradZSum = 0.0f;
-					int gradCount = 0;
-					
-					// Вычисляем градиент, усредняя по области 3x3 для более плавного результата
-					for (int dz = -1; dz <= 1; dz++)
-					{
-						for (int dx = -1; dx <= 1; dx++)
-						{
-							int nx0 = Mathf.Clamp(x0 + dx, 0, meshRes - 1);
-							int nx1 = Mathf.Clamp(x1 + dx, 0, meshRes - 1);
-							int nz0 = Mathf.Clamp(z0 + dz, 0, meshRes - 1);
-							int nz1 = Mathf.Clamp(z1 + dz, 0, meshRes - 1);
-							
-							// Вычисляем высоту в этой точке
-							float nh00 = heightMap[nx0, nz0];
-							float nh10 = heightMap[nx1, nz0];
-							float nh01 = heightMap[nx0, nz1];
-							float nh11 = heightMap[nx1, nz1];
-							
-							float nh0 = Mathf.Lerp(nh00, nh10, fx);
-							float nh1 = Mathf.Lerp(nh01, nh11, fx);
-							float nHeight = Mathf.Lerp(nh0, nh1, fz);
-							
-							// Вычисляем градиент по X для этой точки
-							if (nx0 > 0 && nx1 < meshRes - 1)
-							{
-								float hLeft = heightMap[nx0 - 1, nz0];
-								float hRight = heightMap[Mathf.Min(nx1 + 1, meshRes - 1), nz0];
-								gradXSum += Mathf.Abs(hRight - hLeft);
-								gradCount++;
-							}
-							
-							// Вычисляем градиент по Z для этой точки
-							if (nz0 > 0 && nz1 < meshRes - 1)
-							{
-								float hUp = heightMap[nx0, nz0 - 1];
-								float hDown = heightMap[nx0, Mathf.Min(nz1 + 1, meshRes - 1)];
-								gradZSum += Mathf.Abs(hDown - hUp);
-							}
-						}
-					}
-					
-					// Усредняем градиенты
-					if (gradCount > 0)
-					{
-						gradX = gradXSum / gradCount;
-						gradZ = gradZSum / gradCount;
-					}
-					else
-					{
-						// Fallback на простое вычисление, если усреднение не удалось
-						if (x0 > 0 && x1 < meshRes - 1)
-						{
-							float hLeft = Mathf.Lerp(heightMap[x0 - 1, z0], heightMap[x0 - 1, z1], fz);
-							float hRight = Mathf.Lerp(heightMap[x1 + 1, z0], heightMap[x1 + 1, z1], fz);
-							gradX = Mathf.Abs(hRight - hLeft);
-						}
-						if (z0 > 0 && z1 < meshRes - 1)
-						{
-							float hUp = Mathf.Lerp(heightMap[x0, z0 - 1], heightMap[Mathf.Min(x1, meshRes - 1), z0 - 1], fx);
-							float hDown = Mathf.Lerp(heightMap[x0, z1 + 1], heightMap[Mathf.Min(x1, meshRes - 1), z1 + 1], fx);
-							gradZ = Mathf.Abs(hDown - hUp);
-						}
-					}
-					
-					// Вычисляем общий градиент (крутизну склона)
-					float slope = Mathf.Sqrt(gradX * gradX + gradZ * gradZ);
-					
-					// Нормализуем градиент относительно диапазона высот
-					// Используем уже объявленную переменную heightRange
-					float normalizedSlope = heightRange > 0.001f ? slope / heightRange : 0.0f;
+					// Режим 1: камень на склонах (крутизна предвычислена и интерполируется).
+					float normalizedSlope = SampleMapBilinear(normalizedSlopeMap, gridX, gridZ);
 					
 					// Порог для определения склона (настраиваемый) - понижен для лучшей чувствительности
 					float slopeThreshold = 0.03f; // 3% от диапазона высот - еще более чувствительный
@@ -536,7 +439,7 @@ public static class TerrainTexturePainter
 						{
 							// Получаем цвет дороги из текстуры с tiling
 							// Используем то же значение tileScale, что и для основных текстур
-							Color roadColor = GetSample(roadImg, x, z, texRes, tileScaleX, tileScaleZ);
+							Color roadColor = roadSampler != null ? roadSampler.Sample(x, z) : finalColor;
 							
 							// ВАЖНО: Дороги должны накладываться с полной силой там, где maskValue близко к 1.0
 							// Используем более агрессивное смешивание для лучшей видимости дорог
@@ -548,8 +451,7 @@ public static class TerrainTexturePainter
 							// Используем более сильное смешивание для дорог
 							finalColor = finalColor.Lerp(roadColor, roadBlend);
 							
-							// Отладочный вывод для первых нескольких пикселей дорог
-							if (x < 10 && z < 10 && maskValue > 0.1f)
+							if (VerboseTextureLogs && x < 10 && z < 10 && maskValue > 0.1f)
 							{
 								GD.Print($"🛣️ Дорога на [{x},{z}]: maskValue={maskValue:F3}, roadBlend={roadBlend:F3}, roadColor={roadColor}, finalColor={finalColor}");
 							}
@@ -557,8 +459,7 @@ public static class TerrainTexturePainter
 					}
 					else
 					{
-						// Отладочный вывод, если координаты выходят за границы
-						if (x < 5 && z < 5)
+						if (VerboseTextureLogs && x < 5 && z < 5)
 						{
 							GD.Print($"⚠️ Координаты [{x},{z}] выходят за границы маски {roadMask.GetLength(0)}x{roadMask.GetLength(1)}");
 						}
@@ -568,6 +469,15 @@ public static class TerrainTexturePainter
 				// Устанавливаем рассчитанный цвет в итоговое изображение
 				// ВАЖНО: Это происходит ПОСЛЕ наложения дорог, чтобы дороги были поверх всего
 				finalImg.SetPixel(x, z, finalColor);
+			}
+
+			if ((z + 1) % yieldEveryRows == 0 || z == texRes - 1)
+			{
+				float textureProgress = 52.0f + (float)(z + 1) / texRes * 24.0f;
+				progressCallback?.Invoke(textureProgress, "Применение текстур...");
+				SceneTree tree = meshInstance.GetTree();
+				if (tree != null)
+					await meshInstance.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
 			}
 		}
 
@@ -603,63 +513,119 @@ public static class TerrainTexturePainter
 			GD.PrintErr("Ошибка при сохранении текстуры: ", finalSavePath);
 
 		GD.Print("Текстура успешно применена с плавным смешиванием по высоте");
+		progressCallback?.Invoke(78.0f, "Текстуры применены");
 	}
 
-	// Вспомогательная функция для выборки пикселя из текстуры по координатам
-	// Используем tiling (повторение) для увеличения детализации
-	// Использует билинейную интерполяцию для плавных переходов и скрытия швов
-	private static Color GetSample(Image img, int x, int z, int texRes, float tileScaleX = 4.0f, float tileScaleZ = 4.0f)
+	private sealed class TextureSampler
 	{
-		// Применяем tiling - текстура повторяется несколько раз
-		// tileScaleX/tileScaleZ определяют повторение по каждой оси независимо.
-		float u = ((float)x / (texRes - 1)) * tileScaleX;
-		float v = ((float)z / (texRes - 1)) * tileScaleZ;
-		
-		// Используем модуль для создания повторяющегося паттерна
-		u = u - Mathf.Floor(u);
-		v = v - Mathf.Floor(v);
-		
-		// Преобразуем в координаты текстуры (0..1)
-		float texU = u;
-		float texV = v;
-		
-		// Преобразуем в пиксельные координаты текстуры
-		float pixelU = texU * (img.GetWidth() - 1);
-		float pixelV = texV * (img.GetHeight() - 1);
-		
-		// Получаем целочисленные координаты для билинейной интерполяции
-		int tx0 = (int)Mathf.Floor(pixelU);
-		int tx1 = tx0 + 1;
-		int tz0 = (int)Mathf.Floor(pixelV);
-		int tz1 = tz0 + 1;
-		
-		// Ограничиваем границы с учетом зацикливания (tiling)
-		tx0 = tx0 % img.GetWidth();
-		tx1 = tx1 % img.GetWidth();
-		tz0 = tz0 % img.GetHeight();
-		tz1 = tz1 % img.GetHeight();
-		
-		// Обрабатываем отрицательные значения
-		if (tx0 < 0) tx0 += img.GetWidth();
-		if (tx1 < 0) tx1 += img.GetWidth();
-		if (tz0 < 0) tz0 += img.GetHeight();
-		if (tz1 < 0) tz1 += img.GetHeight();
-		
-		// Получаем цвета в четырех углах
-		Color c00 = img.GetPixel(tx0, tz0);
-		Color c10 = img.GetPixel(tx1, tz0);
-		Color c01 = img.GetPixel(tx0, tz1);
-		Color c11 = img.GetPixel(tx1, tz1);
-		
-		// Вычисляем дробные части для интерполяции
-		float fx = pixelU - Mathf.Floor(pixelU);
-		float fz = pixelV - Mathf.Floor(pixelV);
-		
-		// Билинейная интерполяция для плавного перехода
-		Color c0 = c00.Lerp(c10, fx);
-		Color c1 = c01.Lerp(c11, fx);
-		Color finalColor = c0.Lerp(c1, fz);
-		
-		return finalColor;
+		private readonly Image _img;
+		private readonly int[] _x0;
+		private readonly int[] _x1;
+		private readonly float[] _fx;
+		private readonly int[] _z0;
+		private readonly int[] _z1;
+		private readonly float[] _fz;
+
+		public TextureSampler(Image img, int texRes, float tileScaleX, float tileScaleZ)
+		{
+			_img = img;
+			_x0 = new int[texRes];
+			_x1 = new int[texRes];
+			_fx = new float[texRes];
+			_z0 = new int[texRes];
+			_z1 = new int[texRes];
+			_fz = new float[texRes];
+			BuildAxis(texRes, tileScaleX, img.GetWidth(), _x0, _x1, _fx);
+			BuildAxis(texRes, tileScaleZ, img.GetHeight(), _z0, _z1, _fz);
+		}
+
+		public Color Sample(int x, int z)
+		{
+			Color c00 = _img.GetPixel(_x0[x], _z0[z]);
+			Color c10 = _img.GetPixel(_x1[x], _z0[z]);
+			Color c01 = _img.GetPixel(_x0[x], _z1[z]);
+			Color c11 = _img.GetPixel(_x1[x], _z1[z]);
+			Color c0 = c00.Lerp(c10, _fx[x]);
+			Color c1 = c01.Lerp(c11, _fx[x]);
+			return c0.Lerp(c1, _fz[z]);
+		}
+
+		private static void BuildAxis(int texRes, float tileScale, int imageSize, int[] i0, int[] i1, float[] f)
+		{
+			for (int p = 0; p < texRes; p++)
+			{
+				float uv = ((float)p / (texRes - 1)) * tileScale;
+				uv -= Mathf.Floor(uv);
+				float pixel = uv * (imageSize - 1);
+				int a = (int)Mathf.Floor(pixel);
+				int b = a + 1;
+				if (b >= imageSize) b = 0;
+				i0[p] = a;
+				i1[p] = b;
+				f[p] = pixel - a;
+			}
+		}
+	}
+
+	private static float[,] BuildNormalizedSlopeMap(float[,] heightMap, int meshRes, float heightRange)
+	{
+		float[,] slopeMap = new float[meshRes, meshRes];
+		float invRange = heightRange > 0.001f ? (1.0f / heightRange) : 0.0f;
+		for (int z = 0; z < meshRes; z++)
+		{
+			int z0 = Mathf.Max(0, z - 1);
+			int z1 = Mathf.Min(meshRes - 1, z + 1);
+			for (int x = 0; x < meshRes; x++)
+			{
+				int x0 = Mathf.Max(0, x - 1);
+				int x1 = Mathf.Min(meshRes - 1, x + 1);
+				float gradX = Mathf.Abs(heightMap[x1, z] - heightMap[x0, z]);
+				float gradZ = Mathf.Abs(heightMap[x, z1] - heightMap[x, z0]);
+				float slope = Mathf.Sqrt(gradX * gradX + gradZ * gradZ);
+				slopeMap[x, z] = slope * invRange;
+			}
+		}
+		return slopeMap;
+	}
+
+	private static float SampleMapBilinear(float[,] map, float gridX, float gridZ)
+	{
+		int resX = map.GetLength(0);
+		int resZ = map.GetLength(1);
+		int x0 = Mathf.Clamp((int)Mathf.Floor(gridX), 0, resX - 1);
+		int x1 = Mathf.Clamp((int)Mathf.Ceil(gridX), 0, resX - 1);
+		int z0 = Mathf.Clamp((int)Mathf.Floor(gridZ), 0, resZ - 1);
+		int z1 = Mathf.Clamp((int)Mathf.Ceil(gridZ), 0, resZ - 1);
+		float fx = gridX - x0;
+		float fz = gridZ - z0;
+		float h00 = map[x0, z0];
+		float h10 = map[x1, z0];
+		float h01 = map[x0, z1];
+		float h11 = map[x1, z1];
+		float h0 = Mathf.Lerp(h00, h10, fx);
+		float h1 = Mathf.Lerp(h01, h11, fx);
+		return Mathf.Lerp(h0, h1, fz);
+	}
+
+	private static Image LoadImageCached(string path, string textureLabel)
+	{
+		if (string.IsNullOrEmpty(path))
+		{
+			GD.PrintErr($"Путь к текстуре {textureLabel} не указан!");
+			return null;
+		}
+
+		if (ImageCache.TryGetValue(path, out Image cached) && cached != null && cached.GetWidth() > 0)
+			return cached;
+
+		Image img = new Image();
+		if (img.Load(path) != Error.Ok)
+		{
+			GD.PrintErr($"Не удалось загрузить текстуру {textureLabel} по пути: {path}");
+			return null;
+		}
+
+		ImageCache[path] = img;
+		return img;
 	}
 }
