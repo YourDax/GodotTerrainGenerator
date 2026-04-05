@@ -109,9 +109,15 @@ public static class MeshBuilder
 
 				if (islandMode)
 				{
-					float waterY = Mathf.Lerp(minHeight, maxHeight, waterLevel01);
+					float waterRaw = Mathf.Lerp(minHeight, maxHeight, waterLevel01);
 					float hr = Mathf.Max(1e-6f, maxHeight - minHeight);
-					float seabed = Mathf.Min(minHeight - hr * 0.02f, waterY - hr * islandSeabedDepthFrac);
+					float yOff = hr * 0.5f;
+					float hSubmergeMin = 2f * yOff - waterRaw + hr * 0.035f;
+					hSubmergeMin = Mathf.Clamp(hSubmergeMin, minHeight, maxHeight);
+					float edgeTargetH = Mathf.Clamp(
+						hSubmergeMin + hr * (0.06f + islandSeabedDepthFrac * 0.55f),
+						minHeight,
+						maxHeight);
 					float dEdge = Mathf.Min(Mathf.Min(px, 1f - px), Mathf.Min(pz, 1f - pz));
 					float noiseOff = 0f;
 					if (islandCoastNoise != null)
@@ -122,9 +128,9 @@ public static class MeshBuilder
 					tIsland = Mathf.Pow(tIsland, Mathf.Max(0.2f, islandCliffExponent));
 					tIsland = Mathf.SmoothStep(0f, 1f, tIsland);
 					float landH = height;
-					height = Mathf.Lerp(seabed, landH, tIsland);
+					height = Mathf.Lerp(edgeTargetH, landH, tIsland);
 					if (x == 0 || x == resolution - 1 || z == 0 || z == resolution - 1)
-						height = Mathf.Min(height, waterY - hr * 0.025f);
+						height = Mathf.Max(height, hSubmergeMin + hr * 0.02f);
 				}
 
 				// Сохраняем вершину и UV

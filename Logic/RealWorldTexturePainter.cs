@@ -154,12 +154,9 @@ public static class RealWorldTexturePainter
 				float height = Mathf.Lerp(h0, h1, fz);
 
 				// Вычисляем нормализованную высоту (0 = низ, 1 = верх)
-				// Инвертируем: высокие значения -> высокий h (камень), низкие -> низкий h (песок)
 				// h = 0 для minHeight (песок), h = 1 для maxHeight (камень)
 				float h = heightRange > 0.001f ? (height - minHeight) / heightRange : 0.5f;
 				h = Mathf.Clamp(h, 0f, 1f);
-				// Если высота перевернута, инвертируем h
-				h = 1.0f - h;
 
 				// Получаем пиксели из исходных текстур с tiling для большей детализации
 				// Рассчитываем tileScale в зависимости от размера меша для лучшей детализации
@@ -186,16 +183,19 @@ public static class RealWorldTexturePainter
 					tileScale = 6.0f; // Небольшое увеличение для средних мешей
 				}
 				
-				Color sandColor = GetSample(sandImg, x, z, texRes, tileScale);
-				Color grassColor = GetSample(grassImg, x, z, texRes, tileScale);
-				Color rockColor = GetSample(rockImg, x, z, texRes, tileScale);
+				// Анти-тайлинг: смешиваем 2 выборки с разным масштабом/сдвигом,
+				// чтобы сетка повторов и швы были менее заметны.
+				Color sandColor = GetSampleAntiTiling(sandImg, x, z, texRes, tileScale);
+				Color grassColor = GetSampleAntiTiling(grassImg, x, z, texRes, tileScale);
+				Color rockColor = GetSampleAntiTiling(rockImg, x, z, texRes, tileScale);
 
 				Color finalColor;
-				// Плавные переходы с шириной 0.15
-				float sandToGrassStart = sandGrass - 0.075f;
-				float sandToGrassEnd = sandGrass + 0.075f;
-				float grassToRockStart = grassRock - 0.075f;
-				float grassToRockEnd = grassRock + 0.075f;
+				// Более широкие и мягкие переходы, чтобы не видно было полос/стыков
+				const float transitionWidth = 0.12f;
+				float sandToGrassStart = sandGrass - transitionWidth;
+				float sandToGrassEnd = sandGrass + transitionWidth;
+				float grassToRockStart = grassRock - transitionWidth;
+				float grassToRockEnd = grassRock + transitionWidth;
 
 				// --- Плавные зоны перехода по высоте ---
 				// Ниже sandToGrassStart — чистый песок
@@ -205,6 +205,7 @@ public static class RealWorldTexturePainter
 				else if (h < sandToGrassEnd)
 				{
 					float t = Mathf.InverseLerp(sandToGrassStart, sandToGrassEnd, h);
+					t = Mathf.SmoothStep(0f, 1f, t);
 					finalColor = sandColor.Lerp(grassColor, t);
 				}
 				// Между sandToGrassEnd и grassToRockStart — чистая трава
@@ -214,6 +215,7 @@ public static class RealWorldTexturePainter
 				else if (h < grassToRockEnd)
 				{
 					float t = Mathf.InverseLerp(grassToRockStart, grassToRockEnd, h);
+					t = Mathf.SmoothStep(0f, 1f, t);
 					finalColor = grassColor.Lerp(rockColor, t);
 				}
 				// Выше grassToRockEnd — чистый камень
@@ -279,6 +281,30 @@ public static class RealWorldTexturePainter
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам
 	// Используем tiling (повторение) для увеличения детализации
 	// Использует билинейную интерполяцию для плавных переходов и скрытия швов
+	private static Color GetSampleAntiTiling(Image img, int x, int z, int texRes, float tileScale)
+	{
+		// Основная выборка
+		Color c0 = GetSample(img, x, z, texRes, tileScale);
+		// Вторая выборка: другой масштаб + смещение, чтобы ломать регулярную сетку
+		int ox = (x + (texRes / 3)) % texRes;
+		int oz = (z + (texRes / 5)) % texRes;
+		Color c1 = GetSample(img, ox, oz, texRes, tileScale * 1.73f);
+
+		// Низкочастотный шум-смесь (детерминированно от координат)
+		float n = Hash01(x, z);
+		float mix = Mathf.Lerp(0.28f, 0.62f, n);
+		return c0.Lerp(c1, mix);
+	}
+
+	private static float Hash01(int x, int z)
+	{
+		// Простой стабильный hash -> [0..1]
+		int h = x * 73856093 ^ z * 19349663;
+		h = (h << 13) ^ h;
+		float v = 1.0f - ((h * (h * h * 15731 + 789221) + 1376312589) & 0x7fffffff) / 1073741824.0f;
+		return Mathf.Clamp((v + 1f) * 0.5f, 0f, 1f);
+	}
+
 	private static Color GetSample(Image img, int x, int z, int texRes, float tileScale = 4.0f)
 	{
 		// Применяем tiling - текстура повторяется несколько раз
@@ -334,4 +360,3 @@ public static class RealWorldTexturePainter
 		return finalColor;
 	}
 }
-

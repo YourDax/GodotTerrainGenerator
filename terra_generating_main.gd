@@ -18,7 +18,7 @@ func _exit_tree():
 	panel.free()
 
 func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_mode,
-		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path, generate_island, scatter_settings):
+		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, realmap_water_level, realmap_use_sand, realmap_use_grass, realmap_use_rock, realmap_object_spacing_multiplier, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path, generate_island, scatter_settings):
 	var selection = get_editor_interface().get_selection()
 	var selected_nodes = selection.get_selected_nodes()
 
@@ -43,18 +43,19 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 
 	print("TerrainGenerator добавлен в сцену")
 
-	# Создаем и показываем окно прогресса
-	progress_dialog = PROGRESS_DIALOG.instantiate()
-	get_editor_interface().get_base_control().add_child(progress_dialog)
-	progress_dialog.update_progress(0.0, "Инициализация генерации...")
+	# В режиме реальной карты не показываем прогресс-бар/окно
+	if not real_map_mode:
+		# Создаем и показываем окно прогресса
+		progress_dialog = PROGRESS_DIALOG.instantiate()
+		get_editor_interface().get_base_control().add_child(progress_dialog)
+		progress_dialog.update_progress(0.0, "Инициализация генерации...")
+		
+		# Подключаем сигнал для обновления прогресса из C#
+		# В Godot 4 C# сигналы доступны через connect
+		if terrain_instance.has_signal("progress_updated"):
+			terrain_instance.connect("progress_updated", _on_progress_updated)
 	
-	# Подключаем сигнал для обновления прогресса из C#
-	# В Godot 4 C# сигналы доступны через connect
-	if terrain_instance.has_signal("progress_updated"):
-		terrain_instance.connect("progress_updated", _on_progress_updated)
-	
-	# Вызываем метод Generate напрямую
-	# В Godot 4 C# методы с параметрами по умолчанию могут не определяться через has_method
+	# Вызываем метод Generate
 	print("Вызываю TerrainGenerator.Generate() из C#...")
 	print("Параметры: length=", length, " width=", width, " real_map_mode=", real_map_mode, " generate_roads=", generate_roads)
 	
@@ -62,9 +63,6 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 	if terrain_instance == null:
 		push_error("TerrainGenerator не был создан!")
 		return
-	
-	# Проверяем, есть ли метод (может не работать для C# методов с параметрами по умолчанию)
-	# Но попробуем вызвать напрямую
 	
 	# Вызываем метод через call() для совместимости с C# методами с параметрами по умолчанию
 	terrain_instance.call("Generate",
@@ -77,6 +75,11 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 		real_map_mode,
 		leftuplat, leftuplng, rightdownlat, rightdownlng,
 		resolution_mode,
+		realmap_water_level,
+		realmap_use_sand,
+		realmap_use_grass,
+		realmap_use_rock,
+		realmap_object_spacing_multiplier,
 		smoothing,
 		texture_mode,
 		slope_blend,

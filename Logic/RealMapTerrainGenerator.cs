@@ -2,15 +2,13 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 // Класс для генерации реального рельефа по данным API OpenTopoData
 public static class RealMapTerrainGenerator
 {
 	// URL API для запроса высот
-	private const string API_URL = "https://api.opentopodata.org/v1/srtm90m?locations=";
-	// Процент высоты воды относительно диапазона высот
-	private const float WATER_PERCENT = 0.15f;
 
 	// Параметры пакетной отправки запросов
 	private const int FIXED_RESOLUTION = 50; // Фиксированное разрешение 50x50
@@ -52,6 +50,11 @@ public static class RealMapTerrainGenerator
 		float rightDownLng,
 		Node owner,
 		int resolutionMode = 0,
+		float realMapWaterLevel = 0.15f,
+		bool useSandTexture = true,
+		bool useGrassTexture = true,
+		bool useRockTexture = true,
+		float objectSpacingMultiplier = 0.70f,
 		ProgressCallback progressCallback = null
 	)
 	{
@@ -61,8 +64,15 @@ public static class RealMapTerrainGenerator
 
 		progressCallback?.Invoke(5.0f, "Загрузка высотных данных...");
 
-		// Загружаем матрицу высот
-		float[,] heights = await RequestHeights(leftUpLat, leftUpLng, rightDownLat, rightDownLng, resolutionMode, progressCallback);
+		// Нормализуем координаты в N/S/W/E
+		float north = Mathf.Max(leftUpLat, rightDownLat);
+		float south = Mathf.Min(leftUpLat, rightDownLat);
+		float west = Mathf.Min(leftUpLng, rightDownLng);
+		float east = Mathf.Max(leftUpLng, rightDownLng);
+
+		// Загружаем матрицу высот (только OpenTopoData)
+		int resolution = ResolveResolution(north, south, west, east, resolutionMode);
+		float[,] heights = await RequestHeightsFromOpenTopo(north, south, west, east, resolution, progressCallback);
 
 		// Проверка на ошибки
 		if (heights == null)
@@ -82,8 +92,9 @@ public static class RealMapTerrainGenerator
 		progressCallback?.Invoke(75.0f, "Построение меша...");
 		
 		// Строим меш на основе высот и получаем размер меша
-		float meshSizeUnits;
-		Mesh mesh = BuildCenteredMesh(heights, leftUpLat, leftUpLng, rightDownLat, rightDownLng, out meshSizeUnits);
+		float meshMaxSizeUnits;
+		RealMapMeshMeta meta;
+		Mesh mesh = BuildCenteredMesh(heights, north, south, west, east, out meshMaxSizeUnits, out meta);
 
 		// Проверка валидности меша
 		if (mesh == null || mesh.GetSurfaceCount() == 0)
@@ -101,8 +112,8 @@ public static class RealMapTerrainGenerator
 			Name = "GeneratedTerrain"
 		};
 
-		// Поворачиваем меш, чтобы высоты шли вверх
-		meshInstance.RotateX(Mathf.Pi);
+		// Без поворота: сохраняем естественную ориентацию осей карты
+		// X: запад -> восток, Z: юг -> север (см. BuildCenteredMesh).
 
 		// Добавляем в сцену
 		parent.AddChild(meshInstance);
@@ -120,362 +131,383 @@ public static class RealMapTerrainGenerator
 
 		// Накладываем текстуры по высоте используя специальный класс для реального мира
 		// Передаем исходный массив высот напрямую, чтобы избежать проблем с порядком вершин
+		const float SAND_GRASS_THRESHOLD = 0.35f;
+		const float GRASS_ROCK_THRESHOLD = 0.65f;
+		if (!(useSandTexture || useGrassTexture || useRockTexture))
+			useSandTexture = true;
+		string sandTex = "res://textures/sand.png";
+		string grassTex = "res://textures/grass.png";
+		string rockTex = "res://textures/rock.png";
+		string sandPath;
+		string grassPath;
+		string rockPath;
+		// Явная логика по комбинациям:
+		// - без камня: песок снизу, трава сверху
+		// - без травы: песок снизу, камень сверху
+		// - без песка: трава снизу, камень сверху
+		// - при одной текстуре: вся карта одной текстурой
+		if (useSandTexture && useGrassTexture && useRockTexture)
+		{
+			sandPath = sandTex; grassPath = grassTex; rockPath = rockTex;
+		}
+		else if (useSandTexture && useGrassTexture && !useRockTexture)
+		{
+			sandPath = sandTex; grassPath = grassTex; rockPath = grassTex;
+		}
+		else if (useSandTexture && !useGrassTexture && useRockTexture)
+		{
+			sandPath = sandTex; grassPath = rockTex; rockPath = rockTex;
+		}
+		else if (!useSandTexture && useGrassTexture && useRockTexture)
+		{
+			sandPath = grassTex; grassPath = grassTex; rockPath = rockTex;
+		}
+		else if (useSandTexture && !useGrassTexture && !useRockTexture)
+		{
+			sandPath = sandTex; grassPath = sandTex; rockPath = sandTex;
+		}
+		else if (!useSandTexture && useGrassTexture && !useRockTexture)
+		{
+			sandPath = grassTex; grassPath = grassTex; rockPath = grassTex;
+		}
+		else // !useSandTexture && !useGrassTexture && useRockTexture
+		{
+			sandPath = rockTex; grassPath = rockTex; rockPath = rockTex;
+		}
 		RealWorldTexturePainter.ApplyHeightTexture(
 			meshInstance,
 			heights,
 			meshResX,
 			meshResZ,
-			"res://textures/sand.png",
-			"res://textures/grass.png",
-			"res://textures/rock.png",
-			0.35f,
-			0.65f
+			sandPath,
+			grassPath,
+			rockPath,
+			SAND_GRASS_THRESHOLD,
+			GRASS_ROCK_THRESHOLD
 		);
 
 		GD.Print("✅ Текстуры применены");
 
+		progressCallback?.Invoke(92.0f, "OSM: загрузка объектов...");
+
+		// Вода: используем большой плэйн, но добавляем его только если OSM нашёл воду.
+		float waterT = Mathf.Clamp(realMapWaterLevel, 0f, 1f);
+		float worldWaterY = Mathf.Lerp(meta.MinVy, meta.MaxVy, waterT);
+
+		// OSM: получаем воду и деревья
+		List<OsmOverpassClient.OsmNode> trees;
+		List<List<Vector2>> waterPolys;
+		using (var http = new System.Net.Http.HttpClient())
+		{
+			http.Timeout = TimeSpan.FromSeconds(10);
+			http.DefaultRequestHeaders.Add("User-Agent", "GodotTerrainPlugin/1.0");
+			var osm = new OsmOverpassClient(http);
+			waterPolys = await osm.FetchWaterPolygonsAsync(south, west, north, east, 10, (p, s) => progressCallback?.Invoke(92f + p * 0.03f, s));
+			trees = await osm.FetchTreeNodesAsync(south, west, north, east, 10, (p, s) => progressCallback?.Invoke(95f + p * 0.03f, s));
+		}
+
+		if (waterPolys != null && waterPolys.Count > 0)
+		{
+			GD.Print($"🌊 OSM: вода найдена (полигонов: {waterPolys.Count}), добавляю плоскость воды");
+			var water = new RandomTerrainGenerator().GenerateWaterPlane((int)Mathf.Round(meta.WidthUnits), (int)Mathf.Round(meta.DepthUnits), worldWaterY);
+			water.Name = "WaterPlane";
+			parent.AddChild(water);
+			if (owner != null) water.Owner = owner;
+		}
+		else
+		{
+			GD.Print("🌊 OSM: вода не найдена, плоскость воды не добавляется");
+		}
+
+		progressCallback?.Invoke(98.0f, "OSM: размещение деревьев...");
+		PlaceTreesFromOsm(meshInstance, meta, heights, trees, owner, worldWaterY, objectSpacingMultiplier);
+
 		progressCallback?.Invoke(100.0f, "Генерация завершена!");
+		GD.Print("✅ Real-map generation completed");
 
 
 		return meshInstance;
 	}
 
-	// Метод делает запрос к API и возвращает 2D массив высот
-	private static async Task<float[,]> RequestHeights(
-		float leftUpLat,
-		float leftUpLng,
-		float rightDownLat,
-		float rightDownLng,
-		int resolutionMode = 0,
-		ProgressCallback progressCallback = null
-	)
+	private static int ResolveResolution(float north, float south, float west, float east, int resolutionMode)
 	{
-		// Нормализуем координаты в N/S/W/E
-		float north = Mathf.Max(leftUpLat, rightDownLat);
-		float south = Mathf.Min(leftUpLat, rightDownLat);
-		float west = Mathf.Min(leftUpLng, rightDownLng);
-		float east = Mathf.Max(leftUpLng, rightDownLng);
-
-		// Выводим нормализованные границы
-		GD.Print($"Normalized bounds: N={north.ToString(CultureInfo.InvariantCulture)}, S={south.ToString(CultureInfo.InvariantCulture)}, W={west.ToString(CultureInfo.InvariantCulture)}, E={east.ToString(CultureInfo.InvariantCulture)}");
-
-		// Вычисляем разницу по широте/долготе
 		float dLat = Math.Abs(north - south);
 		float dLon = Math.Abs(east - west);
-
-		// Определяем разрешение в зависимости от выбранного режима
-		int resolution;
+		float meanLatRad = Mathf.DegToRad((north + south) * 0.5f);
+		const float METERS_PER_DEGREE_LAT = 111320f;
+		float metersPerDegLon = Mathf.Cos(meanLatRad) * METERS_PER_DEGREE_LAT;
+		float widthMeters = dLon * metersPerDegLon;
+		float depthMeters = dLat * METERS_PER_DEGREE_LAT;
+		float maxSideKm = Mathf.Max(widthMeters, depthMeters) / 1000f;
 		ResolutionMode mode = (ResolutionMode)resolutionMode;
-		
-		switch (mode)
+		return mode switch
 		{
-			case ResolutionMode.HighQuality:
-				resolution = 50; // 50x50 = 2500 точек = 25 запросов
-				GD.Print($"🌍 Режим: Высокое качество (50x50, ~25 запросов, дольше по времени)");
-				break;
-			case ResolutionMode.MediumQuality:
-				resolution = 31; // 31x31 = 961 точка = 10 запросов
-				GD.Print($"🌍 Режим: Среднее качество (31x31, ~10 запросов, быстрее)");
-				break;
-			case ResolutionMode.Adaptive:
-			default:
-				// Адаптивное разрешение в зависимости от размера области
-				if (dLat < 0.01f && dLon < 0.01f)
-					resolution = 50; // Маленькая область - высокое разрешение
-				else if (dLat < 0.05f && dLon < 0.05f)
-					resolution = 40; // Средняя область
-				else if (dLat < 0.2f && dLon < 0.2f)
-					resolution = 31; // Большая область - среднее разрешение
-				else
-					resolution = 25; // Очень большая область - низкое разрешение
-				GD.Print($"🌍 Режим: Адаптивное (разрешение {resolution}x{resolution} в зависимости от размера области)");
-				break;
-		}
+			ResolutionMode.HighQuality => 50,
+			ResolutionMode.MediumQuality => 31,
+			// Адаптивный: по физическому размеру области, без выхода за лимит OpenTopoData (<=50).
+			_ => maxSideKm <= 2f ? 50
+				: maxSideKm <= 5f ? 45
+				: maxSideKm <= 10f ? 39
+				: maxSideKm <= 20f ? 33
+				: 27
+		};
+	}
 
-		GD.Print($"🌍 Resolution: {resolution}x{resolution} (dLat={dLat:F6}, dLon={dLon:F6})");
-
-		// Массив высот (будет пересоздан, если разрешение изменится)
-		float[,] data = new float[resolution, resolution];
-
-		// Формируем список координат
-		var points = new List<string>(resolution * resolution);
-		for (int z = 0; z < resolution; z++)
-		{
-			float lat = Mathf.Lerp(north, south, (float)z / (resolution - 1));
-			for (int x = 0; x < resolution; x++)
-			{
-				float lng = Mathf.Lerp(west, east, (float)x / (resolution - 1));
-				points.Add(string.Format(CultureInfo.InvariantCulture, "{0},{1}", lat, lng));
-			}
-		}
-
-		// Лог количества точек
-		GD.Print($"Сгенерировано точек: {points.Count}");
-
-		// HttpClient для запроса
+	private static async Task<float[,]> RequestHeightsFromOpenTopo(
+		float north,
+		float south,
+		float west,
+		float east,
+		int resolution,
+		ProgressCallback progressCallback
+	)
+	{
 		using var http = new System.Net.Http.HttpClient();
 		http.Timeout = TimeSpan.FromSeconds(REQUEST_TIMEOUT_SECONDS);
 		http.DefaultRequestHeaders.Add("User-Agent", "GodotTerrainPlugin/1.0");
+		var topo = new OpenTopoDataClient(http);
+		return await topo.FetchHeightsGridAsync(
+			north, west, south, east,
+			resolution,
+			MAX_POINTS_PER_REQUEST,
+			MAX_REQUESTS,
+			REQUEST_DELAY_MS,
+			MAX_RETRIES,
+			RETRY_DELAY_MS,
+			TimeSpan.FromSeconds(REQUEST_TIMEOUT_SECONDS),
+			(p, s) => progressCallback?.Invoke(5f + p * 0.65f, s)
+		);
+	}
 
-		int idx = 0;
-		int reqCount = 0;
+	private readonly record struct RealMapMeshMeta(
+		float North,
+		float South,
+		float West,
+		float East,
+		int ResX,
+		int ResZ,
+		float WidthUnits,
+		float DepthUnits,
+		float MaxSizeUnits,
+		float HeightScale,
+		float MinH,
+		float MaxH,
+		float MinVy,
+		float MaxVy
+	);
 
-		// API OpenTopoData ограничивает количество точек в одном запросе до 100
-		// Вычисляем размер батча и количество запросов
-		int totalPoints = points.Count;
-		int batchSize = MAX_POINTS_PER_REQUEST;
-		
-		// Вычисляем необходимое количество запросов
-		int requiredRequests = (int)Mathf.Ceil(totalPoints / (float)batchSize);
-		
-		// Проверяем, не превышаем ли лимит запросов
-		if (requiredRequests > MAX_REQUESTS)
+	private readonly record struct PlacedCircle(Vector2 Pos, float Radius);
+
+	private static void PlaceTreesFromOsm(
+		MeshInstance3D terrainMesh,
+		RealMapMeshMeta meta,
+		float[,] heightsMeters,
+		List<OsmOverpassClient.OsmNode> trees,
+		Node owner,
+		float worldWaterY,
+		float objectSpacingMultiplier
+	)
+	{
+		if (terrainMesh == null || trees == null || trees.Count == 0)
+			return;
+
+		var group = new Node3D { Name = "OSMObjects" };
+		terrainMesh.GetParent().AddChild(group);
+		if (owner != null) group.Owner = owner;
+
+		var treesRoot = new Node3D { Name = "Trees" };
+		group.AddChild(treesRoot);
+		if (owner != null) treesRoot.Owner = owner;
+
+		// Дефолтные сцены деревьев
+		var treeScenes = new List<PackedScene>();
+		const string tree1Path = "res://addons/terragenerating/Texture/source/tree.tscn";
+		const string tree2Path = "res://addons/terragenerating/Texture/source/tree2.tscn";
+		if (ResourceLoader.Exists(tree1Path)) treeScenes.Add(ResourceLoader.Load<PackedScene>(tree1Path));
+		if (ResourceLoader.Exists(tree2Path)) treeScenes.Add(ResourceLoader.Load<PackedScene>(tree2Path));
+
+		// Масштабируем объекты относительно размера карты.
+		float baseScaleFactor = Mathf.Clamp(meta.MaxSizeUnits / 1000f, 0.005f, 0.20f);
+		// Пересечения проверяем после вычисления финального scale каждой модели.
+		float spacingMul = Mathf.Clamp(objectSpacingMultiplier, 0.20f, 3.00f);
+		float cellSize = Mathf.Max(0.5f, meta.MaxSizeUnits / 120f);
+		float overlapPadding = Mathf.Max(0.03f, meta.MaxSizeUnits * 0.0005f);
+		float maxPlacedRadius = 0.5f;
+		var spatial = new Dictionary<Vector2I, List<PlacedCircle>>();
+
+		for (int i = 0; i < trees.Count; i++)
 		{
-			GD.PrintErr($"⚠️ ВНИМАНИЕ: Требуется {requiredRequests} запросов, но максимум {MAX_REQUESTS}!");
-			GD.PrintErr($"⚠️ Это означает, что разрешение {resolution}x{resolution} слишком большое.");
-			GD.PrintErr($"⚠️ Уменьшаем разрешение до {Mathf.Sqrt(MAX_REQUESTS * batchSize):F0}x{Mathf.Sqrt(MAX_REQUESTS * batchSize):F0}");
-			
-			// Пересчитываем с меньшим разрешением
-			int newResolution = (int)Mathf.Sqrt(MAX_REQUESTS * batchSize);
-			// Округляем вниз
-			newResolution = (newResolution / 2) * 2;
-			
-			// Пересоздаем точки с новым разрешением
-			points.Clear();
-			for (int z = 0; z < newResolution; z++)
-			{
-				float lat = Mathf.Lerp(north, south, (float)z / (newResolution - 1));
-				for (int x = 0; x < newResolution; x++)
-				{
-					float lng = Mathf.Lerp(west, east, (float)x / (newResolution - 1));
-					points.Add(string.Format(CultureInfo.InvariantCulture, "{0},{1}", lat, lng));
-				}
-			}
-			
-			// Пересоздаем массив данных
-			data = new float[newResolution, newResolution];
-			resolution = newResolution;
-			totalPoints = points.Count;
-			requiredRequests = (int)Mathf.Ceil(totalPoints / (float)batchSize);
-			
-			GD.Print($"✅ Новое разрешение: {resolution}x{resolution} ({totalPoints} точек, {requiredRequests} запросов)");
-		}
-		
-		int maxAllowedRequests = Mathf.Min(MAX_REQUESTS, requiredRequests);
-		
-		GD.Print($"📦 Batch size: {batchSize} points per request (total: {totalPoints} points, {requiredRequests} requests, max {maxAllowedRequests} allowed)");
-		
-		while (idx < points.Count && reqCount < maxAllowedRequests)
-		{
-			int take = Mathf.Min(batchSize, points.Count - idx);
-			var batch = points.GetRange(idx, take);
+			var n = trees[i];
+			float u = (float)((n.Lon - meta.West) / (meta.East - meta.West));
+			float v = (float)((meta.North - n.Lat) / (meta.North - meta.South));
+			if (float.IsNaN(u) || float.IsNaN(v)) continue;
+			if (u < 0f || u > 1f || v < 0f || v > 1f) continue;
 
-			string url = API_URL + string.Join("|", batch);
+			// Семплим высоту в метрах билинейно по сетке
+			float hx = u * (meta.ResX - 1);
+			float hz = v * (meta.ResZ - 1);
+			int x0 = Mathf.Clamp((int)Mathf.Floor(hx), 0, meta.ResX - 1);
+			int z0 = Mathf.Clamp((int)Mathf.Floor(hz), 0, meta.ResZ - 1);
+			int x1 = Mathf.Min(x0 + 1, meta.ResX - 1);
+			int z1 = Mathf.Min(z0 + 1, meta.ResZ - 1);
+			float tx = hx - x0;
+			float tz = hz - z0;
 
-			reqCount++;
-			
-			// Обновляем прогресс
-			float progress = 5.0f + (reqCount / (float)maxAllowedRequests) * 65.0f; // От 5% до 70%
-			progressCallback?.Invoke(progress, $"Запрос {reqCount}/{maxAllowedRequests} к API...");
+			float h00 = heightsMeters[x0, z0];
+			float h10 = heightsMeters[x1, z0];
+			float h01 = heightsMeters[x0, z1];
+			float h11 = heightsMeters[x1, z1];
+			float hm = Mathf.Lerp(Mathf.Lerp(h00, h10, tx), Mathf.Lerp(h01, h11, tx), tz);
+			if (float.IsNaN(hm)) continue;
 
-			// Логируем параметры запроса
-			GD.Print($"📡 Запрос {reqCount}/{maxAllowedRequests} ({take} точек, осталось {points.Count - idx} точек)");
-			GD.Print($"🔹 URL (начало): {url.Substring(0, Mathf.Min(200, url.Length))}");
-			GD.Print($"🔹 Примеры точек: first={batch[0]} last={batch[batch.Count - 1]}");
+			float vy = (hm - meta.MinH) * meta.HeightScale;
 
-			// Пытаемся выполнить запрос с повторными попытками
-			bool success = false;
-			int retryCount = 0;
-			System.Net.Http.HttpResponseMessage resp = null;
+			// Преобразуем u/v в локальные x/z меша (как в BuildCenteredMesh)
+			float halfX = meta.WidthUnits * 0.5f;
+			float halfZ = meta.DepthUnits * 0.5f;
+			float lx = u * meta.WidthUnits - halfX;
+			// v=0 (north) -> +Z, v=1 (south) -> -Z
+			float lz = halfZ - v * meta.DepthUnits;
 
-			while (!success && retryCount < MAX_RETRIES)
-			{
-			try
-			{
-				// Выполняем GET запрос
-				resp = await http.GetAsync(url);
-					
-					// Проверка статуса
-					if (resp.IsSuccessStatusCode)
-					{
-						success = true;
-					}
-					else
-					{
-						GD.PrintErr($"❌ HTTP {resp.StatusCode} on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}");
-						retryCount++;
-						if (retryCount < MAX_RETRIES)
-						{
-							await Task.Delay(RETRY_DELAY_MS * (retryCount + 1)); // Увеличиваем задержку с каждой попыткой
-						}
-					}
-				}
-				catch (System.Net.Http.HttpRequestException ex)
-				{
-					// Ошибка сети
-					GD.PrintErr($"❌ Network error on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}: {ex.Message}");
-					retryCount++;
-					if (retryCount < MAX_RETRIES)
-					{
-						await Task.Delay(RETRY_DELAY_MS * (retryCount + 1)); // Увеличиваем задержку с каждой попыткой
-					}
-				}
-				catch (TaskCanceledException ex)
-				{
-					// Таймаут
-					GD.PrintErr($"⏱️ Timeout on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}: {ex.Message}");
-					retryCount++;
-					if (retryCount < MAX_RETRIES)
-					{
-						GD.Print($"🔄 Retrying request #{reqCount} in {RETRY_DELAY_MS * (retryCount + 1) / 1000.0} seconds...");
-						await Task.Delay(RETRY_DELAY_MS * (retryCount + 1)); // Увеличиваем задержку с каждой попыткой
-					}
-			}
-			catch (Exception ex)
-			{
-					// Другие ошибки
-					GD.PrintErr($"❌ Unexpected error on request #{reqCount}, attempt {retryCount + 1}/{MAX_RETRIES}: {ex.Message}");
-					retryCount++;
-					if (retryCount < MAX_RETRIES)
-					{
-						await Task.Delay(RETRY_DELAY_MS * (retryCount + 1));
-					}
-				}
-			}
+			Vector3 local = new Vector3(lx, vy, lz);
+			Vector3 world = terrainMesh.GlobalTransform * local;
 
-			// Если все попытки неудачны, пропускаем этот батч
-			if (!success || resp == null)
-			{
-				GD.PrintErr($"❌ Failed to load batch {reqCount} after {MAX_RETRIES} attempts. Skipping {take} points.");
-				// Заполняем пропущенные точки NaN
-				for (int i = 0; i < take; i++)
-				{
-					int flat = idx + i;
-					if (flat < resolution * resolution)
-					{
-						int x = flat % resolution;
-						int z = flat / resolution;
-						data[x, z] = float.NaN;
-					}
-				}
-				idx += take;
-				await Task.Delay(RETRY_DELAY_MS);
+			if (world.Y <= worldWaterY + 0.05f)
 				continue;
-			}
 
-			// Успешный запрос - обрабатываем ответ
-			if (retryCount > 0)
+			Node3D tree;
+			if (treeScenes.Count > 0)
 			{
-				GD.Print($"✅ Request #{reqCount} succeeded after {retryCount + 1} attempts");
+				int pick = (int)Mathf.Floor(GD.Randf() * treeScenes.Count);
+				pick = Mathf.Clamp(pick, 0, treeScenes.Count - 1);
+				tree = treeScenes[pick].Instantiate<Node3D>();
 			}
 			else
 			{
-				GD.Print($"✅ Request #{reqCount} succeeded");
+				var mi = new MeshInstance3D { Mesh = new CapsuleMesh { Radius = 0.15f, Height = 2.2f } };
+				mi.MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.2f, 0.7f, 0.2f) };
+				tree = new Node3D();
+				tree.AddChild(mi);
 			}
 
-			// Чтение JSON
-			string json = await resp.Content.ReadAsStringAsync();
-			GD.Print($"🔹 RAW JSON (начало): {json.Substring(0, Mathf.Min(400, json.Length))}");
+			tree.Name = $"tree_{i}";
+			treesRoot.AddChild(tree);
+			if (owner != null) tree.Owner = owner;
 
-			Godot.Collections.Dictionary parsed;
-			try
+			float yaw = GD.Randf() * Mathf.Tau;
+			// Небольшой рандом только для естественности, без сильного разброса размера.
+			float jitter = Mathf.Lerp(0.96f, 1.04f, GD.Randf());
+			float scaleFactor = baseScaleFactor * jitter;
+
+			float localRadius = EstimateFootprintRadius(tree);
+			float candidateRadius = Mathf.Max(0.08f, localRadius * scaleFactor);
+			var p2 = new Vector2(world.X, world.Z);
+			var cell = new Vector2I(
+				Mathf.FloorToInt(p2.X / cellSize),
+				Mathf.FloorToInt(p2.Y / cellSize)
+			);
+			int searchRange = Mathf.Max(1, Mathf.CeilToInt(((candidateRadius + maxPlacedRadius + overlapPadding) * spacingMul) / cellSize));
+			bool tooClose = false;
+			for (int dz = -searchRange; dz <= searchRange && !tooClose; dz++)
 			{
-				// Парсим JSON в словарь Godot
-				parsed = Godot.Json.ParseString(json).AsGodotDictionary();
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"❌ JSON parse error on request #{reqCount}: {ex.Message}");
-				idx += take;
-				await Task.Delay(REQUEST_DELAY_MS);
-				continue;
-			}
-
-			// Проверка наличия поля results
-			if (!parsed.ContainsKey("results"))
-			{
-				GD.PrintErr($"❌ Ответ не содержит 'results' (req #{reqCount})");
-				idx += take;
-				await Task.Delay(REQUEST_DELAY_MS);
-				continue;
-			}
-
-			var results = parsed["results"].AsGodotArray();
-
-			// Читаем elevation из каждого результата
-			for (int i = 0; i < results.Count; i++)
-			{
-				int flat = idx + i;
-				if (flat >= resolution * resolution) break;
-
-				var r = results[i].AsGodotDictionary();
-
-				float elev;
-
-				if (!r.ContainsKey("elevation") || r["elevation"].VariantType == Variant.Type.Nil)
+				for (int dx = -searchRange; dx <= searchRange && !tooClose; dx++)
 				{
-					// elevation отсутствует
-					elev = float.NaN;
-					GD.PrintErr($"⚠ elevation NULL at flatIndex={flat}");
-				}
-				else
-				{
-					// Парсим значение elevation
-					Variant v = r["elevation"];
-
-					if (v.VariantType == Variant.Type.Float)
-						elev = v.AsSingle();
-					else if (v.VariantType == Variant.Type.Int)
-						elev = v.AsInt32();
-					else if (v.VariantType == Variant.Type.String)
+					var nc = new Vector2I(cell.X + dx, cell.Y + dz);
+					if (!spatial.TryGetValue(nc, out var bucket)) continue;
+					for (int bi = 0; bi < bucket.Count; bi++)
 					{
-						float.TryParse(v.AsString(), NumberStyles.Any, CultureInfo.InvariantCulture, out elev);
+						PlacedCircle other = bucket[bi];
+						float minDist = (candidateRadius + other.Radius + overlapPadding) * spacingMul;
+						if (other.Pos.DistanceTo(p2) < minDist)
+						{
+							tooClose = true;
+							break;
+						}
 					}
-					else elev = float.NaN;
 				}
-
-				// Преобразуем flat-index в координаты
-				int x = flat % resolution;
-				int z = flat / resolution;
-
-				data[x, z] = elev;
 			}
-
-			// Продвигаем индекс
-			idx += take;
-
-			// Пауза после успешного запроса перед следующим
-			if (idx < points.Count && reqCount < maxAllowedRequests)
+			if (tooClose)
 			{
-				GD.Print($"⏸️ Pausing {REQUEST_DELAY_MS / 1000.0} seconds before next request...");
-			await Task.Delay(REQUEST_DELAY_MS);
+				tree.QueueFree();
+				continue;
 			}
-		}
 
-		// Проверка на неполную загрузку данных
-		int loadedCount = 0;
-		int nanCount = 0;
-		for (int z = 0; z < resolution; z++)
-		{
-			for (int x = 0; x < resolution; x++)
+			Basis worldBasis = Basis.FromEuler(new Vector3(0, yaw, 0)).Scaled(new Vector3(scaleFactor, scaleFactor, scaleFactor));
+			tree.GlobalTransform = new Transform3D(worldBasis, world);
+
+			if (!spatial.TryGetValue(cell, out var list))
 			{
-				if (!float.IsNaN(data[x, z]))
-					loadedCount++;
-				else
-					nanCount++;
+				list = new List<PlacedCircle>();
+				spatial[cell] = list;
 			}
+			list.Add(new PlacedCircle(p2, candidateRadius));
+			if (candidateRadius > maxPlacedRadius) maxPlacedRadius = candidateRadius;
 		}
-
-		GD.Print($"📊 Загружено точек: {loadedCount}/{resolution * resolution}, NaN: {nanCount}");
-		
-		if (idx < points.Count)
-		{
-			GD.PrintErr($"⚠️ ВНИМАНИЕ: Загружено не все данные! Осталось {points.Count - idx} точек из {points.Count}");
-		}
-
-		GD.Print("✅ Высотные данные загружены.");
-		return data;
 	}
+
+	private static float EstimateFootprintRadius(Node3D root)
+	{
+		bool has = false;
+		Aabb merged = default;
+		CollectMeshAabbs(root, Transform3D.Identity, ref has, ref merged);
+		if (!has)
+			return 0.4f;
+
+		float dx = merged.Size.X * 0.5f;
+		float dz = merged.Size.Z * 0.5f;
+		return Mathf.Max(0.1f, Mathf.Sqrt(dx * dx + dz * dz));
+	}
+
+	private static void CollectMeshAabbs(Node3D node, Transform3D rootToNode, ref bool has, ref Aabb merged)
+	{
+		if (node is MeshInstance3D mi && mi.Mesh != null)
+		{
+			Aabb aabb = TransformAabb(rootToNode, mi.GetAabb());
+			if (!has)
+			{
+				merged = aabb;
+				has = true;
+			}
+			else
+			{
+				merged = merged.Merge(aabb);
+			}
+		}
+
+		foreach (Node child in node.GetChildren())
+		{
+			if (child is Node3D child3d)
+			{
+				CollectMeshAabbs(child3d, rootToNode * child3d.Transform, ref has, ref merged);
+			}
+		}
+	}
+
+	private static Aabb TransformAabb(Transform3D transform, Aabb aabb)
+	{
+		Vector3 p0 = transform * aabb.Position;
+		Vector3 p1 = transform * (aabb.Position + new Vector3(aabb.Size.X, 0, 0));
+		Vector3 p2 = transform * (aabb.Position + new Vector3(0, aabb.Size.Y, 0));
+		Vector3 p3 = transform * (aabb.Position + new Vector3(0, 0, aabb.Size.Z));
+		Vector3 p4 = transform * (aabb.Position + new Vector3(aabb.Size.X, aabb.Size.Y, 0));
+		Vector3 p5 = transform * (aabb.Position + new Vector3(aabb.Size.X, 0, aabb.Size.Z));
+		Vector3 p6 = transform * (aabb.Position + new Vector3(0, aabb.Size.Y, aabb.Size.Z));
+		Vector3 p7 = transform * (aabb.Position + aabb.Size);
+
+		Vector3 min = p0;
+		Vector3 max = p0;
+		void Include(Vector3 p)
+		{
+			min = min.Min(p);
+			max = max.Max(p);
+		}
+
+		Include(p1); Include(p2); Include(p3); Include(p4);
+		Include(p5); Include(p6); Include(p7);
+		return new Aabb(min, max - min);
+	}
+
+	// Вода теперь добавляется большим плэйном, но только если OSM нашёл воду.
 
 	// Заполнение пропущенных значений высот
 	private static void FillMissingHeights(float[,] data)
@@ -528,51 +560,41 @@ public static class RealMapTerrainGenerator
 	}
 
 	// Построение меша на основе матрицы высот
-	private static Mesh BuildCenteredMesh(float[,] heights, float leftUpLat, float leftUpLng, float rightDownLat, float rightDownLng, out float sizeUnits)
+	private static Mesh BuildCenteredMesh(float[,] heights, float north, float south, float west, float east, out float sizeUnits, out RealMapMeshMeta meta)
 	{
 		int resX = heights.GetLength(0);
 		int resZ = heights.GetLength(1);
 
 		// Средняя широта в радианах
-		float meanLat = (leftUpLat + rightDownLat) * 0.5f;
+		float meanLat = (north + south) * 0.5f;
 		meanLat = Mathf.DegToRad(meanLat);
 		const float METERS_PER_DEGREE_LAT = 111320f;
 		float metersPerDegLon = Mathf.Cos(meanLat) * METERS_PER_DEGREE_LAT;
-
-		// Нормализуем координаты для правильного расчета размеров
-		float north = Mathf.Max(leftUpLat, rightDownLat);
-		float south = Mathf.Min(leftUpLat, rightDownLat);
-		float west = Mathf.Min(leftUpLng, rightDownLng);
-		float east = Mathf.Max(leftUpLng, rightDownLng);
 
 		// Вычисляем реальные размеры в метрах
 		float widthMeters = Math.Abs(east - west) * metersPerDegLon;
 		float depthMeters = Math.Abs(north - south) * METERS_PER_DEGREE_LAT;
 
-		// Вычисляем итоговый размер меша в юнитах Godot
-		float desiredSize = Mathf.Max(widthMeters, depthMeters);
-		sizeUnits = desiredSize * METERS_TO_UNITS;
-		sizeUnits = Mathf.Clamp(sizeUnits, MIN_MESH_UNITS, MAX_MESH_UNITS);
+		// Вычисляем размеры меша в юнитах по каждой оси (сохраняем форму bbox)
+		float widthUnits = Mathf.Max(widthMeters * METERS_TO_UNITS, MIN_MESH_UNITS);
+		float depthUnits = Mathf.Max(depthMeters * METERS_TO_UNITS, MIN_MESH_UNITS);
+		if (float.IsNaN(widthUnits) || widthUnits <= 0f) widthUnits = MIN_MESH_UNITS;
+		if (float.IsNaN(depthUnits) || depthUnits <= 0f) depthUnits = MIN_MESH_UNITS;
 
-		if (float.IsNaN(sizeUnits) || sizeUnits <= 0f) sizeUnits = MIN_MESH_UNITS;
+		// Масштабирование так, чтобы максимальная сторона не превышала MAX_MESH_UNITS
+		float maxSideUnits = Mathf.Max(widthUnits, depthUnits);
+		float finalScale = maxSideUnits > MAX_MESH_UNITS ? (MAX_MESH_UNITS / maxSideUnits) : 1f;
+		widthUnits *= finalScale;
+		depthUnits *= finalScale;
+		sizeUnits = Mathf.Max(widthUnits, depthUnits);
 
 		// Шаг между вершинами
-		float stepX = sizeUnits / (resX - 1);
-		float stepZ = sizeUnits / (resZ - 1);
-
-		// Масштабирование под максимум
-		float targetUnits = MAX_MESH_UNITS;
-		float scaleX = targetUnits / sizeUnits;
-		float scaleZ = targetUnits / sizeUnits;
-		float finalScale = Mathf.Min(Mathf.Min(scaleX, scaleZ), 1f);
-
-		stepX *= finalScale;
-		stepZ *= finalScale;
-		sizeUnits *= finalScale;
+		float stepX = widthUnits / (resX - 1);
+		float stepZ = depthUnits / (resZ - 1);
 
 		// Логируем масштабирование
-		GD.Print($"✅ Mesh scaled: final size={sizeUnits:F2} units");
-		GD.Print($"Real size (m): width={widthMeters:F1}, depth={depthMeters:F1} -> mesh units size={sizeUnits:F2}");
+		GD.Print($"✅ Mesh scaled: final width={widthUnits:F2} depth={depthUnits:F2} units");
+		GD.Print($"Real size (m): width={widthMeters:F1}, depth={depthMeters:F1} -> mesh units width={widthUnits:F2}, depth={depthUnits:F2}");
 
 		// Создаём SurfaceTool
 		var st = new SurfaceTool();
@@ -582,10 +604,10 @@ public static class RealMapTerrainGenerator
 		Vector3[] verts = new Vector3[resX * resZ];
 		Vector2[] uvs = new Vector2[resX * resZ];
 
-		float halfX = sizeUnits * 0.5f;
-		float halfZ = sizeUnits * 0.5f;
+		float halfX = widthUnits * 0.5f;
+		float halfZ = depthUnits * 0.5f;
 
-		// Получаем min/max высот
+		// Получаем min/max высот (метры)
 		GetMinMax(heights, out float minH, out float maxH);
 
 		// Вычисляем масштаб для высот: масштабируем пропорционально размеру меша
@@ -606,13 +628,17 @@ public static class RealMapTerrainGenerator
 			GD.PrintErr($"⚠️ ВНИМАНИЕ: Очень маленький диапазон высот ({heightRange:F2}m)! Ландшафт будет плоским.");
 		}
 
+		float minVy = float.MaxValue;
+		float maxVy = float.MinValue;
+
 		// Генерируем вершины и UV
 		for (int z = 0; z < resZ; z++)
 		{
 			for (int x = 0; x < resX; x++)
 			{
 				float vx = x * stepX - halfX;
-				float vz = z * stepZ - halfZ;
+				// z=0 (north) -> +Z, z=max (south) -> -Z
+				float vz = halfZ - z * stepZ;
 				
 				// Высоты в метрах преобразуем в юниты Godot
 				float height = heights[x, z];
@@ -625,6 +651,8 @@ public static class RealMapTerrainGenerator
 				// Вычитаем minH чтобы начать с нуля, затем масштабируем пропорционально размеру меша
 				float heightInMeters = height - minH; // Относительная высота от минимума
 				float vy = heightInMeters * heightScale;
+				if (vy < minVy) minVy = vy;
+				if (vy > maxVy) maxVy = vy;
 				
 				// Логируем для отладки (только первые несколько вершин)
 				if (x < 3 && z < 3)
@@ -662,6 +690,7 @@ public static class RealMapTerrainGenerator
 		st.GenerateNormals();
 
 		// Возвращаем меш и размер
+		meta = new RealMapMeshMeta(north, south, west, east, resX, resZ, widthUnits, depthUnits, sizeUnits, heightScale, minH, maxH, minVy, maxVy);
 		return st.Commit();
 	}
 

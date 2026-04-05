@@ -20,6 +20,11 @@ public partial class TerrainGenerator : Node3D
 		bool realMapMode,
 		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng,
 		int resolutionMode = 0,
+		float realMapWaterLevel = 0.15f,
+		bool realMapUseSand = true,
+		bool realMapUseGrass = true,
+		bool realMapUseRock = true,
+		float realMapObjectSpacingMultiplier = 0.70f,
 		float smoothing = 1.0f,
 		int textureMode = 0,
 		float slopeBlend = 0.5f,
@@ -40,7 +45,12 @@ public partial class TerrainGenerator : Node3D
 			_ = GenerateRealMapTerrainAsync(
 				leftuplat, leftuplng,
 				rightdownlat, rightdownlng,
-				resolutionMode
+				resolutionMode,
+				realMapWaterLevel,
+				realMapUseSand,
+				realMapUseGrass,
+				realMapUseRock,
+				realMapObjectSpacingMultiplier
 			);
 			return;
 		}
@@ -234,7 +244,12 @@ public partial class TerrainGenerator : Node3D
 
 	private async Task GenerateRealMapTerrainAsync(
 		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng,
-		int resolutionMode = 0
+		int resolutionMode = 0,
+		float realMapWaterLevel = 0.15f,
+		bool realMapUseSand = true,
+		bool realMapUseGrass = true,
+		bool realMapUseRock = true,
+		float realMapObjectSpacingMultiplier = 0.70f
 	)
 	{
 		// Передаем callback для обновления прогресса
@@ -244,6 +259,11 @@ public partial class TerrainGenerator : Node3D
 			rightdownlat, rightdownlng,
 			Owner,
 			resolutionMode,
+			realMapWaterLevel,
+			realMapUseSand,
+			realMapUseGrass,
+			realMapUseRock,
+			realMapObjectSpacingMultiplier,
 			(progress, status) => {
 				CallDeferred(MethodName.EmitSignal, SignalName.ProgressUpdated, progress, status);
 			}
