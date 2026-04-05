@@ -22,6 +22,7 @@ public partial class TerrainGenerator : Node3D
 		public string DirectionText;
 		public int SourceLength;
 		public int SourceWidth;
+		public int SuggestedResolution;
 		public float SourceMinHeight;
 		public float SourceMaxHeight;
 		public float? SourceWaterY;
@@ -219,7 +220,13 @@ public partial class TerrainGenerator : Node3D
 			{
 				length = continuation.SourceLength;
 			}
-			// Разрешение нового чанка может отличаться; стык выравнивается ресэмплингом края.
+
+			int oldResolution = resolution;
+			resolution = Mathf.Max(resolution, continuation.SuggestedResolution);
+			if (ContinuationDebugLogging && resolution != oldResolution)
+			{
+				GD.Print($"📏 CONT resolution adjusted: requested={oldResolution}, suggested={continuation.SuggestedResolution}, final={resolution}");
+			}
 
 			if (continuation.SourceWaterY.HasValue)
 			{
@@ -550,6 +557,7 @@ public partial class TerrainGenerator : Node3D
 			sourceWidth = Mathf.Max(1, Mathf.RoundToInt(axisSpan));
 		else
 			sourceLength = Mathf.Max(1, Mathf.RoundToInt(axisSpan));
+		int suggestedResolution = EstimateContinuationResolution(frontier, sourceLength, sourceWidth, frontier[0].Resolution);
 
 		float? sourceWaterY = FindNearestWaterY(new Vector3(
 			direction == ContinueDirection.ZPlus || direction == ContinueDirection.ZMinus ? (axisMin + axisMax) * 0.5f : frontier[0].Mesh.Position.X,
@@ -559,7 +567,7 @@ public partial class TerrainGenerator : Node3D
 
 		if (ContinuationDebugLogging)
 		{
-			GD.Print($"🧭 CONT context dir={directionText} frontierFace={frontierFace:F2} axis=[{axisMin:F2}..{axisMax:F2}] span={axisSpan:F2} sourceLen={sourceLength} sourceWid={sourceWidth} baseY={baseY:F2} frontierCount={frontier.Count}");
+			GD.Print($"🧭 CONT context dir={directionText} frontierFace={frontierFace:F2} axis=[{axisMin:F2}..{axisMax:F2}] span={axisSpan:F2} sourceLen={sourceLength} sourceWid={sourceWidth} suggestedRes={suggestedResolution} baseY={baseY:F2} frontierCount={frontier.Count}");
 		}
 
 		return new ContinueContext
@@ -568,6 +576,7 @@ public partial class TerrainGenerator : Node3D
 			DirectionText = directionText,
 			SourceLength = sourceLength,
 			SourceWidth = sourceWidth,
+			SuggestedResolution = suggestedResolution,
 			SourceMinHeight = srcMinH,
 			SourceMaxHeight = srcMaxH,
 			SourceWaterY = sourceWaterY,
@@ -579,6 +588,37 @@ public partial class TerrainGenerator : Node3D
 			FrontierSegments = segments,
 			NextChunkIndex = GetNextChunkIndex(),
 		};
+	}
+
+	private static int EstimateContinuationResolution(List<FrontierCandidate> frontier, int targetLength, int targetWidth, int fallbackResolution)
+	{
+		if (frontier == null || frontier.Count == 0)
+			return Mathf.Clamp(fallbackResolution, 4, 1024);
+
+		float sumDensityX = 0f;
+		float sumDensityZ = 0f;
+		int count = 0;
+		for (int i = 0; i < frontier.Count; i++)
+		{
+			FrontierCandidate c = frontier[i];
+			if (c.Resolution < 4 || c.Length <= 0 || c.Width <= 0)
+				continue;
+
+			float cells = c.Resolution - 1;
+			sumDensityX += cells / c.Length;
+			sumDensityZ += cells / c.Width;
+			count++;
+		}
+
+		if (count == 0)
+			return Mathf.Clamp(fallbackResolution, 4, 1024);
+
+		float densityX = sumDensityX / count;
+		float densityZ = sumDensityZ / count;
+		int resByLength = Mathf.RoundToInt(targetLength * densityX) + 1;
+		int resByWidth = Mathf.RoundToInt(targetWidth * densityZ) + 1;
+		int suggested = Mathf.Max(4, Mathf.Max(resByLength, resByWidth));
+		return Mathf.Clamp(suggested, 4, 1024);
 	}
 
 	private List<FrontierCandidate> CollectFrontierCandidates(ContinueDirection direction)
@@ -903,13 +943,71 @@ public partial class TerrainGenerator : Node3D
 		Vector2[] uvArray = (Vector2[])arrays[(int)ArrayMesh.ArrayType.TexUV];
 		if (verticesArray.Length == 0 || uvArray.Length == 0) return;
 
-		int lockRows = 2;
-		int blendRows = Mathf.Clamp(Mathf.RoundToInt(resolution * 0.08f), 4, 14);
+		int lockRows = 1;
+		int blendRows = Mathf.Clamp(Mathf.RoundToInt(resolution * 0.12f), 6, 20);
 		float[,] edgeStrip = BuildCombinedEdgeStrip(ctx, resolution, lockRows);
 		if (ContinuationDebugLogging)
 		{
 			int mid = Mathf.Clamp((resolution - 1) / 2, 0, resolution - 1);
-			GD.Print($"🪡 CONT seam dir={ctx.DirectionText} lockRows={lockRows} blendRows={blendRows} strip[r0]=[{edgeStrip[0, 0]:F2},{edgeStrip[0, mid]:F2},{edgeStrip[0, resolution - 1]:F2}] strip[r1]=[{edgeStrip[1, 0]:F2},{edgeStrip[1, mid]:F2},{edgeStrip[1, resolution - 1]:F2}]");
+			GD.Print($"🪡 CONT seam dir={ctx.DirectionText} lockRows={lockRows} blendRows={blendRows} strip[r0]=[{edgeStrip[0, 0]:F2},{edgeStrip[0, mid]:F2},{edgeStrip[0, resolution - 1]:F2}]");
+		}
+
+		float[] seamSourceSum = new float[resolution];
+		int[] seamSourceCount = new int[resolution];
+		for (int i = 0; i < verticesArray.Length; i++)
+		{
+			Vector3 v = verticesArray[i];
+			Vector2 uv = uvArray[i];
+			int xi = Mathf.Clamp(Mathf.RoundToInt(uv.X * (resolution - 1)), 0, resolution - 1);
+			int zi = Mathf.Clamp(Mathf.RoundToInt(uv.Y * (resolution - 1)), 0, resolution - 1);
+
+			int dist = GetDistanceFromSeam(ctx.Direction, xi, zi, resolution);
+			if (dist != 0)
+				continue;
+
+			int axis = GetAxisIndexAlongSeam(ctx.Direction, xi, zi, resolution);
+			axis = Mathf.Clamp(axis, 0, resolution - 1);
+			seamSourceSum[axis] += v.Y;
+			seamSourceCount[axis] += 1;
+		}
+
+		float[] seamOffset = new float[resolution];
+		bool[] hasOffset = new bool[resolution];
+		for (int a = 0; a < resolution; a++)
+		{
+			if (seamSourceCount[a] <= 0)
+				continue;
+			float seamSource = seamSourceSum[a] / seamSourceCount[a];
+			seamOffset[a] = edgeStrip[0, a] - seamSource;
+			hasOffset[a] = true;
+		}
+
+		for (int a = 0; a < resolution; a++)
+		{
+			if (hasOffset[a])
+				continue;
+
+			int left = a - 1;
+			while (left >= 0 && !hasOffset[left]) left--;
+			int right = a + 1;
+			while (right < resolution && !hasOffset[right]) right++;
+
+			if (left >= 0 && right < resolution)
+			{
+				float tFill = (float)(a - left) / (right - left);
+				seamOffset[a] = Mathf.Lerp(seamOffset[left], seamOffset[right], tFill);
+				hasOffset[a] = true;
+			}
+			else if (left >= 0)
+			{
+				seamOffset[a] = seamOffset[left];
+				hasOffset[a] = true;
+			}
+			else if (right < resolution)
+			{
+				seamOffset[a] = seamOffset[right];
+				hasOffset[a] = true;
+			}
 		}
 
 		for (int i = 0; i < verticesArray.Length; i++)
@@ -925,19 +1023,17 @@ public partial class TerrainGenerator : Node3D
 
 			if (dist < lockRows)
 			{
-				v.Y = edgeStrip[dist, axis];
+				v.Y = edgeStrip[0, axis];
 				verticesArray[i] = v;
 				continue;
 			}
 
-			int blendDist = dist - lockRows;
-			if (blendDist >= blendRows)
+			if (dist > blendRows)
 				continue;
 
-			float t = 1f - ((float)(blendDist + 1) / (blendRows + 1));
+			float t = 1f - (dist / (blendRows + 1f));
 			t = Mathf.SmoothStep(0f, 1f, t);
-			float seamBase = edgeStrip[lockRows - 1, axis];
-			v.Y = Mathf.Lerp(v.Y, seamBase, t);
+			v.Y += seamOffset[axis] * t;
 			verticesArray[i] = v;
 		}
 

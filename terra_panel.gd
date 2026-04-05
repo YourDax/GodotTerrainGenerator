@@ -397,6 +397,7 @@ func _update_continue_generation_ui() -> void:
 
 	_set_spinbox_editable(length_field, not lock_length)
 	_set_spinbox_editable(width_field, not lock_width)
+	_set_spinbox_editable(resolution_field, not continuation_enabled)
 	_set_spinbox_editable(water_level_field, not continuation_enabled)
 
 func apply_continue_source_settings(data: Dictionary) -> void:
