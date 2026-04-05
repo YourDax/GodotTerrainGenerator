@@ -55,14 +55,13 @@ public sealed class OsmOverpassClient
 out body;
 ";
 
-		using var content = new StringContent("data=" + Uri.EscapeDataString(ql), Encoding.UTF8, "application/x-www-form-urlencoded");
-
 		System.Net.Http.HttpResponseMessage resp = null;
 		for (int attempt = 0; attempt < _overpassUrls.Length; attempt++)
 		{
 			string url = _overpassUrls[attempt];
 			try
 			{
+				using var content = new StringContent("data=" + Uri.EscapeDataString(ql), Encoding.UTF8, "application/x-www-form-urlencoded");
 				resp = await _http.PostAsync(url, content, ct);
 				if (resp.IsSuccessStatusCode)
 					break;
@@ -149,14 +148,13 @@ out geom;
 ";
 
 		var polys = new List<List<Vector2>>();
-		using var content = new StringContent("data=" + Uri.EscapeDataString(ql), Encoding.UTF8, "application/x-www-form-urlencoded");
-
 		System.Net.Http.HttpResponseMessage resp = null;
 		for (int attempt = 0; attempt < _overpassUrls.Length; attempt++)
 		{
 			string url = _overpassUrls[attempt];
 			try
 			{
+				using var content = new StringContent("data=" + Uri.EscapeDataString(ql), Encoding.UTF8, "application/x-www-form-urlencoded");
 				resp = await _http.PostAsync(url, content, ct);
 				if (resp.IsSuccessStatusCode)
 					break;

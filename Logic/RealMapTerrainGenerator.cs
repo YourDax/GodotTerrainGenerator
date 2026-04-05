@@ -12,12 +12,12 @@ public static class RealMapTerrainGenerator
 
 	// Параметры пакетной отправки запросов
 	private const int FIXED_RESOLUTION = 50; // Фиксированное разрешение 50x50
-	private const int MAX_POINTS_PER_REQUEST = 100; // Лимит API OpenTopoData
+	private const int MAX_POINTS_PER_REQUEST = TerraConfig.OpenTopoMaxPointsPerRequest; // Лимит API OpenTopoData
 	private const int MAX_REQUESTS = 25; // Максимум запросов (50x50 = 2500 точек / 100 = 25 запросов)
-	private const int REQUEST_DELAY_MS = 1000; // Задержка после успешного запроса
-	private const int RETRY_DELAY_MS = 1000; // Задержка при повторной попытке
-	private const int MAX_RETRIES = 5; // Количество повторных попыток при ошибке
-	private const int REQUEST_TIMEOUT_SECONDS = 1; // Таймаут запроса
+	private const int REQUEST_DELAY_MS = TerraConfig.OpenTopoRequestDelayMs; // Задержка после успешного запроса
+	private const int RETRY_DELAY_MS = TerraConfig.OpenTopoRetryDelayMs; // Задержка при повторной попытке
+	private const int MAX_RETRIES = TerraConfig.OpenTopoMaxRetries; // Количество повторных попыток при ошибке
+	private const int REQUEST_TIMEOUT_SECONDS = TerraConfig.OpenTopoTimeoutSeconds; // Таймаут запроса
 
 	// Диапазон нормализованных высот (в метрах)
 	private const float TARGET_MIN_HEIGHT = 0f;
@@ -71,7 +71,7 @@ public static class RealMapTerrainGenerator
 		float east = Mathf.Max(leftUpLng, rightDownLng);
 
 		// Загружаем матрицу высот (только OpenTopoData)
-		int resolution = ResolveResolution(north, south, west, east, resolutionMode);
+		int resolution = TerrainMath.ResolveResolution(north, south, west, east, resolutionMode);
 		float[,] heights = await RequestHeightsFromOpenTopo(north, south, west, east, resolution, progressCallback);
 
 		// Проверка на ошибки
@@ -135,9 +135,9 @@ public static class RealMapTerrainGenerator
 		const float GRASS_ROCK_THRESHOLD = 0.65f;
 		if (!(useSandTexture || useGrassTexture || useRockTexture))
 			useSandTexture = true;
-		string sandTex = "res://textures/sand.png";
-		string grassTex = "res://textures/grass.png";
-		string rockTex = "res://textures/rock.png";
+		string sandTex = TerraConfig.SandTexturePath;
+		string grassTex = TerraConfig.GrassTexturePath;
+		string rockTex = TerraConfig.RockTexturePath;
 		string sandPath;
 		string grassPath;
 		string rockPath;
@@ -231,26 +231,7 @@ public static class RealMapTerrainGenerator
 
 	private static int ResolveResolution(float north, float south, float west, float east, int resolutionMode)
 	{
-		float dLat = Math.Abs(north - south);
-		float dLon = Math.Abs(east - west);
-		float meanLatRad = Mathf.DegToRad((north + south) * 0.5f);
-		const float METERS_PER_DEGREE_LAT = 111320f;
-		float metersPerDegLon = Mathf.Cos(meanLatRad) * METERS_PER_DEGREE_LAT;
-		float widthMeters = dLon * metersPerDegLon;
-		float depthMeters = dLat * METERS_PER_DEGREE_LAT;
-		float maxSideKm = Mathf.Max(widthMeters, depthMeters) / 1000f;
-		ResolutionMode mode = (ResolutionMode)resolutionMode;
-		return mode switch
-		{
-			ResolutionMode.HighQuality => 50,
-			ResolutionMode.MediumQuality => 31,
-			// Адаптивный: по физическому размеру области, без выхода за лимит OpenTopoData (<=50).
-			_ => maxSideKm <= 2f ? 50
-				: maxSideKm <= 5f ? 45
-				: maxSideKm <= 10f ? 39
-				: maxSideKm <= 20f ? 33
-				: 27
-		};
+		return TerrainMath.ResolveResolution(north, south, west, east, resolutionMode);
 	}
 
 	private static async Task<float[,]> RequestHeightsFromOpenTopo(
@@ -338,8 +319,9 @@ public static class RealMapTerrainGenerator
 		for (int i = 0; i < trees.Count; i++)
 		{
 			var n = trees[i];
-			float u = (float)((n.Lon - meta.West) / (meta.East - meta.West));
-			float v = (float)((meta.North - n.Lat) / (meta.North - meta.South));
+			Vector2 uv = TerrainMath.LonLatToUv(n.Lat, n.Lon, meta.North, meta.South, meta.West, meta.East);
+			float u = uv.X;
+			float v = uv.Y;
 			if (float.IsNaN(u) || float.IsNaN(v)) continue;
 			if (u < 0f || u > 1f || v < 0f || v > 1f) continue;
 
@@ -363,13 +345,7 @@ public static class RealMapTerrainGenerator
 			float vy = (hm - meta.MinH) * meta.HeightScale;
 
 			// Преобразуем u/v в локальные x/z меша (как в BuildCenteredMesh)
-			float halfX = meta.WidthUnits * 0.5f;
-			float halfZ = meta.DepthUnits * 0.5f;
-			float lx = u * meta.WidthUnits - halfX;
-			// v=0 (north) -> +Z, v=1 (south) -> -Z
-			float lz = halfZ - v * meta.DepthUnits;
-
-			Vector3 local = new Vector3(lx, vy, lz);
+			Vector3 local = TerrainMath.UvToLocal(u, v, meta.WidthUnits, meta.DepthUnits, vy);
 			Vector3 world = terrainMesh.GlobalTransform * local;
 
 			if (world.Y <= worldWaterY + 0.05f)

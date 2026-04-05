@@ -102,7 +102,7 @@ public static class TerrainTexturePainter
 			
 			// Добавляем пути по умолчанию (в приоритетном порядке)
 			// Основной путь по умолчанию - res://addons/terragenerating/Texture/road.jpg
-			possibleRoadPaths.Add("res://addons/terragenerating/Texture/road.jpg");
+			possibleRoadPaths.Add(TerraConfig.DefaultRoadTexturePath);
 			possibleRoadPaths.Add("res://addons/terragenerating/Texture/road.png");
 			possibleRoadPaths.Add("res://Texture/road.jpg");
 			possibleRoadPaths.Add("res://Texture/road.png");
@@ -225,29 +225,7 @@ public static class TerrainTexturePainter
 		// Рассчитываем на основе размера карты для лучшего качества на больших картах
 		// Используем формулу: базовое разрешение + дополнительное разрешение в зависимости от размера
 		int maxMapSize = Mathf.Max(mapSizeX, mapSizeZ);
-		int texRes = 1024; // Базовое разрешение
-		
-		// Увеличиваем разрешение пропорционально размеру карты
-		if (maxMapSize > 500)
-		{
-			texRes = 4096; // Максимальное разрешение для очень больших карт
-		}
-		else if (maxMapSize > 300)
-		{
-			texRes = 3072; // Высокое разрешение для больших карт
-		}
-		else if (maxMapSize > 200)
-		{
-			texRes = 2048; // Средне-высокое разрешение
-		}
-		else if (maxMapSize > 100)
-		{
-			texRes = 1536; // Среднее разрешение
-		}
-		else if (maxMapSize > 50)
-		{
-			texRes = 1280; // Небольшое увеличение для средних карт
-		}
+		int texRes = TerraConfig.GetTextureResolutionForSize(maxMapSize);
 		
 		GD.Print($"📐 Размер карты: {mapSizeX}x{mapSizeZ}, Разрешение текстуры: {texRes}x{texRes}");
 		
@@ -367,27 +345,7 @@ public static class TerrainTexturePainter
 				// Получаем пиксели из исходных текстур с tiling для большей детализации
 				// Рассчитываем tileScale в зависимости от размера карты для лучшей детализации
 				// Для больших карт увеличиваем количество повторений текстуры
-				float tileScale = 4.0f; // Базовое количество повторений
-				if (maxMapSize > 500)
-				{
-					tileScale = 16.0f; // Много повторений для очень больших карт
-				}
-				else if (maxMapSize > 300)
-				{
-					tileScale = 12.0f; // Много повторений для больших карт
-				}
-				else if (maxMapSize > 200)
-				{
-					tileScale = 10.0f; // Средне-много повторений
-				}
-				else if (maxMapSize > 100)
-				{
-					tileScale = 8.0f; // Среднее количество повторений
-				}
-				else if (maxMapSize > 50)
-				{
-					tileScale = 6.0f; // Небольшое увеличение для средних карт
-				}
+				float tileScale = TerraConfig.GetTileScaleForSize(maxMapSize);
 				
 				Color sandColor = GetSample(sandImg, x, z, texRes, tileScale);
 				Color grassColor = GetSample(grassImg, x, z, texRes, tileScale);

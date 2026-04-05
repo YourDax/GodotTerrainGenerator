@@ -546,62 +546,14 @@ public static class RoadGenerator
 		float roadWidth
 	)
 	{
-		float halfLength = length * 0.5f;
-		float halfWidth = width * 0.5f;
-		
 		foreach (var path in roadPaths)
 		{
-			for (int i = 0; i < path.Count - 1; i++)
+			var polyline = new List<Vector2>(path.Count);
+			for (int i = 0; i < path.Count; i++)
 			{
-				RoadPoint p1 = path[i];
-				RoadPoint p2 = path[i + 1];
-				
-				// Вычисляем расстояние между точками
-				float segmentLength = Mathf.Sqrt(
-					Mathf.Pow(p2.X - p1.X, 2) + 
-					Mathf.Pow(p2.Z - p1.Z, 2)
-				);
-				
-				// Количество шагов для заполнения сегмента
-				int numSteps = Mathf.Max(10, (int)(segmentLength * textureResolution / Mathf.Max(length, width)));
-				
-				// Заполняем маску вдоль сегмента дороги
-				for (int step = 0; step <= numSteps; step++)
-				{
-					float t = (float)step / numSteps;
-					float x = Mathf.Lerp(p1.X, p2.X, t);
-					float z = Mathf.Lerp(p1.Z, p2.Z, t);
-					
-					// Преобразуем координаты террейна в координаты текстуры
-					float normalizedX = (x + halfLength) / length;
-					float normalizedZ = (z + halfWidth) / width;
-					
-					int texX = (int)(normalizedX * (textureResolution - 1));
-					int texZ = (int)(normalizedZ * (textureResolution - 1));
-					
-					// Ширина дороги в пикселях
-					float roadWidthInTex = roadWidth * textureResolution / Mathf.Max(length, width);
-					int roadRadius = Mathf.Max(1, (int)(roadWidthInTex * 0.5f));
-					
-					// Заполняем область дороги в маске
-					for (int dz = -roadRadius; dz <= roadRadius; dz++)
-					{
-						for (int dx = -roadRadius; dx <= roadRadius; dx++)
-						{
-							int px = texX + dx;
-							int pz = texZ + dz;
-							
-							if (px >= 0 && px < textureResolution && pz >= 0 && pz < textureResolution)
-							{
-								float dist = Mathf.Sqrt(dx * dx + dz * dz);
-								float maskValue = 1.0f - Mathf.Clamp(dist / roadRadius, 0.0f, 1.0f);
-								maskValue = Mathf.SmoothStep(0.0f, 1.0f, maskValue);
-								roadMask[px, pz] = Mathf.Max(roadMask[px, pz], maskValue);
-							}
-						}
-					}
-				}
+				polyline.Add(new Vector2(path[i].X, path[i].Z));
 			}
+			TerrainMath.RasterizeRoadMask(roadMask, polyline, length, width, roadWidth);
 		}
 	}
 }

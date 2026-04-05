@@ -17,8 +17,11 @@ func _exit_tree():
 	remove_control_from_docks(panel)
 	panel.free()
 
-func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_mode,
-		leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, realmap_water_level, realmap_use_sand, realmap_use_grass, realmap_use_rock, realmap_object_spacing_multiplier, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path, generate_island, scatter_settings):
+func _on_generate_pressed(config: Dictionary):
+	var real_map_mode := bool(config.get("real_map_mode", false))
+	var length := int(config.get("length", 0))
+	var width := int(config.get("width", 0))
+	var generate_roads := bool(config.get("generate_roads", false))
 	var selection = get_editor_interface().get_selection()
 	var selected_nodes = selection.get_selected_nodes()
 
@@ -65,29 +68,7 @@ func _on_generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, r
 		return
 	
 	# Вызываем метод через call() для совместимости с C# методами с параметрами по умолчанию
-	terrain_instance.call("Generate",
-		length, width,
-		min_h, max_h,
-		sand_grass, grass_rock,
-		resolution,
-		water_level,
-		texture_path,
-		real_map_mode,
-		leftuplat, leftuplng, rightdownlat, rightdownlng,
-		resolution_mode,
-		realmap_water_level,
-		realmap_use_sand,
-		realmap_use_grass,
-		realmap_use_rock,
-		realmap_object_spacing_multiplier,
-		smoothing,
-		texture_mode,
-		slope_blend,
-		generate_roads,
-		road_texture_path,
-		generate_island,
-		scatter_settings
-	)
+	terrain_instance.call("GenerateFromConfig", config)
 	
 	print("Метод Generate вызван")
 	

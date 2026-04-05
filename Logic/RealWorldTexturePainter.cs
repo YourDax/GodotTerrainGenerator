@@ -13,11 +13,11 @@ public static class RealWorldTexturePainter
 		int meshResX,
 		int meshResZ,
 		// Путь к текстуре песка
-		string sandPath = "res://textures/sand.png",
+		string sandPath = "res://addons/terragenerating/Texture/sand.png",
 		// Путь к текстуре травы
-		string grassPath = "res://textures/grass.png",
+		string grassPath = "res://addons/terragenerating/Texture/grass.png",
 		// Путь к текстуре камня
-		string rockPath = "res://textures/rock.png",
+		string rockPath = "res://addons/terragenerating/Texture/rock.png",
 		// Граница песок-трава (нормализованная высота 0-1)
 		float sandGrass = 0.35f,
 		// Граница трава-камень (нормализованная высота 0-1)
@@ -86,29 +86,7 @@ public static class RealWorldTexturePainter
 		// Разрешение итоговой текстуры
 		// Рассчитываем на основе размера меша для лучшего качества на больших картах
 		int maxRes = Math.Max(meshResX, meshResZ);
-		int texRes = 1024; // Базовое разрешение
-		
-		// Увеличиваем разрешение пропорционально размеру меша
-		if (maxRes > 80)
-		{
-			texRes = 4096; // Максимальное разрешение для очень больших мешей
-		}
-		else if (maxRes > 60)
-		{
-			texRes = 3072; // Высокое разрешение для больших мешей
-		}
-		else if (maxRes > 40)
-		{
-			texRes = 2048; // Средне-высокое разрешение
-		}
-		else if (maxRes > 30)
-		{
-			texRes = 1536; // Среднее разрешение
-		}
-		else if (maxRes > 20)
-		{
-			texRes = 1280; // Небольшое увеличение для средних мешей
-		}
+		int texRes = TerraConfig.GetTextureResolutionForSize(maxRes);
 		
 		GD.Print($"📐 Размер меша: {meshResX}x{meshResZ}, Разрешение текстуры: {texRes}x{texRes}");
 
@@ -161,27 +139,7 @@ public static class RealWorldTexturePainter
 				// Получаем пиксели из исходных текстур с tiling для большей детализации
 				// Рассчитываем tileScale в зависимости от размера меша для лучшей детализации
 				// Для больших мешей увеличиваем количество повторений текстуры
-				float tileScale = 4.0f; // Базовое количество повторений
-				if (maxRes > 80)
-				{
-					tileScale = 16.0f; // Много повторений для очень больших мешей
-				}
-				else if (maxRes > 60)
-				{
-					tileScale = 12.0f; // Много повторений для больших мешей
-				}
-				else if (maxRes > 40)
-				{
-					tileScale = 10.0f; // Средне-много повторений
-				}
-				else if (maxRes > 30)
-				{
-					tileScale = 8.0f; // Среднее количество повторений
-				}
-				else if (maxRes > 20)
-				{
-					tileScale = 6.0f; // Небольшое увеличение для средних мешей
-				}
+				float tileScale = TerraConfig.GetTileScaleForSize(maxRes);
 				
 				// Анти-тайлинг: смешиваем 2 выборки с разным масштабом/сдвигом,
 				// чтобы сетка повторов и швы были менее заметны.

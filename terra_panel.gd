@@ -1,7 +1,7 @@
 @tool
 extends VBoxContainer
 
-signal generate_pressed(length, width, min_h, max_h, sand_grass, grass_rock, resolution, water_level, texture_path, real_map_enabled, leftuplat, leftuplng, rightdownlat, rightdownlng, resolution_mode, realmap_water_level, realmap_use_sand, realmap_use_grass, realmap_use_rock, realmap_object_spacing_multiplier, smoothing, texture_mode, slope_blend, generate_roads, road_texture_path, generate_island, scatter_settings)
+signal generate_pressed(config)
 
 @onready var length_field = $"VBoxContainer/HBoxContainer X/Xbox"
 @onready var width_field = $"VBoxContainer/HBoxContainer Z/Zbox"
@@ -489,28 +489,34 @@ func _on_generate_button_pressed() -> void:
 		scatter_settings = _build_scatter_settings()
 		if island_check:
 			generate_island = island_check.button_pressed
-	emit_signal("generate_pressed",
-		int(length_field.value),
-		int(width_field.value),
-		float(min_height_field.value),
-		float(max_height_field.value),
-		float(sand_grass_field.value),
-		float(grass_rock_field.value),
-		int(resolution_field.value),
-		float(water_level_field.value),
-		texture_save_path,
-		real_map_check.button_pressed,
-		leftuplat, leftuplng, rightdownlat, rightdownlng,
-		resolution_mode,
-		realmap_water_level,
-		realmap_use_sand,
-		realmap_use_grass,
-		realmap_use_rock,
-		realmap_object_spacing_multiplier,
-		smoothing,
-		texture_mode,
-		slope_blend,
-		generate_roads,
-		road_texture_path,
-		generate_island,
-		scatter_settings)
+	var config := {
+		"length": int(length_field.value),
+		"width": int(width_field.value),
+		"min_height": float(min_height_field.value),
+		"max_height": float(max_height_field.value),
+		"sand_grass": float(sand_grass_field.value),
+		"grass_rock": float(grass_rock_field.value),
+		"resolution": int(resolution_field.value),
+		"water_level": float(water_level_field.value),
+		"texture_save_path": texture_save_path,
+		"real_map_mode": real_map_check.button_pressed,
+		"leftup_lat": leftuplat,
+		"leftup_lng": leftuplng,
+		"rightdown_lat": rightdownlat,
+		"rightdown_lng": rightdownlng,
+		"resolution_mode": resolution_mode,
+		"realmap_water_level": realmap_water_level,
+		"realmap_use_sand": realmap_use_sand,
+		"realmap_use_grass": realmap_use_grass,
+		"realmap_use_rock": realmap_use_rock,
+		"realmap_object_spacing_multiplier": realmap_object_spacing_multiplier,
+		"smoothing": smoothing,
+		"texture_mode": texture_mode,
+		"slope_blend": slope_blend,
+		"generate_roads": generate_roads,
+		"road_texture_path": road_texture_path,
+		"generate_island": generate_island,
+		"scatter_settings": scatter_settings
+	}
+
+	emit_signal("generate_pressed", config)

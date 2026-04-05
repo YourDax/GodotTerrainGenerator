@@ -8,6 +8,45 @@ public partial class TerrainGenerator : Node3D
 	// Сигнал для обновления прогресса
 	[Signal]
 	public delegate void ProgressUpdatedEventHandler(float progress, string status);
+
+	public void GenerateFromConfig(Godot.Collections.Dictionary config)
+	{
+		if (config == null)
+		{
+			GD.PrintErr("GenerateFromConfig: config is null");
+			return;
+		}
+
+		Generate(
+			GetInt(config, "length", 100),
+			GetInt(config, "width", 100),
+			GetFloat(config, "min_height", 0f),
+			GetFloat(config, "max_height", 25f),
+			GetFloat(config, "sand_grass", 0.35f),
+			GetFloat(config, "grass_rock", 0.65f),
+			GetInt(config, "resolution", 100),
+			GetFloat(config, "water_level", 0.35f),
+			GetString(config, "texture_save_path", string.Empty),
+			GetBool(config, "real_map_mode", false),
+			GetFloat(config, "leftup_lat", 0f),
+			GetFloat(config, "leftup_lng", 0f),
+			GetFloat(config, "rightdown_lat", 0f),
+			GetFloat(config, "rightdown_lng", 0f),
+			GetInt(config, "resolution_mode", 0),
+			GetFloat(config, "realmap_water_level", 0.15f),
+			GetBool(config, "realmap_use_sand", true),
+			GetBool(config, "realmap_use_grass", true),
+			GetBool(config, "realmap_use_rock", true),
+			GetFloat(config, "realmap_object_spacing_multiplier", 0.70f),
+			GetFloat(config, "smoothing", 1.0f),
+			GetInt(config, "texture_mode", 0),
+			GetFloat(config, "slope_blend", 0.5f),
+			GetBool(config, "generate_roads", false),
+			GetString(config, "road_texture_path", string.Empty),
+			GetBool(config, "generate_island", false),
+			GetDictionary(config, "scatter_settings")
+		);
+	}
 	
 	public void Generate(
 		int length, int width,
@@ -139,12 +178,7 @@ public partial class TerrainGenerator : Node3D
 		// Вычисляем разрешение текстуры, которое будет использоваться в TerrainTexturePainter
 		// Это должно совпадать с разрешением, которое вычисляется в TerrainTexturePainter
 		int maxMapSize = Mathf.Max(length, width);
-		int texRes = 1024; // Базовое разрешение
-		if (maxMapSize > 500) texRes = 4096;
-		else if (maxMapSize > 300) texRes = 3072;
-		else if (maxMapSize > 200) texRes = 2048;
-		else if (maxMapSize > 100) texRes = 1536;
-		else if (maxMapSize > 50) texRes = 1280;
+		int texRes = TerraConfig.GetTextureResolutionForSize(maxMapSize);
 		
 		// Генерируем маску дорог, если включена опция
 		float[,] roadMask = null;
@@ -154,8 +188,7 @@ public partial class TerrainGenerator : Node3D
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			
 			// Вычисляем пропорциональную ширину дороги
-			float roadWidth = Mathf.Max(length, width) * 0.02f; // 2% от максимального размера
-			roadWidth = Mathf.Clamp(roadWidth, 1.0f, 5.0f); // Ограничиваем от 1 до 5 единиц
+			float roadWidth = TerraConfig.GetRoadWidthForTerrain(length, width);
 			
 			GD.Print($"🛣️ Генерация маски дорог с разрешением: {texRes}x{texRes}");
 			
@@ -192,9 +225,9 @@ public partial class TerrainGenerator : Node3D
 			meshInstance,
 			minHeight,
 			maxHeight,
-			"res://textures/sand.png",
-			"res://textures/grass.png",
-			"res://textures/rock.png",
+			TerraConfig.SandTexturePath,
+			TerraConfig.GrassTexturePath,
+			TerraConfig.RockTexturePath,
 			savePath,
 			sandGrass,
 			grassRock,
@@ -268,5 +301,35 @@ public partial class TerrainGenerator : Node3D
 				CallDeferred(MethodName.EmitSignal, SignalName.ProgressUpdated, progress, status);
 			}
 		);
+	}
+
+	private static bool GetBool(Godot.Collections.Dictionary dict, string key, bool fallback)
+	{
+		if (dict == null || !dict.ContainsKey(key)) return fallback;
+		return dict[key].AsBool();
+	}
+
+	private static int GetInt(Godot.Collections.Dictionary dict, string key, int fallback)
+	{
+		if (dict == null || !dict.ContainsKey(key)) return fallback;
+		return dict[key].AsInt32();
+	}
+
+	private static float GetFloat(Godot.Collections.Dictionary dict, string key, float fallback)
+	{
+		if (dict == null || !dict.ContainsKey(key)) return fallback;
+		return dict[key].AsSingle();
+	}
+
+	private static string GetString(Godot.Collections.Dictionary dict, string key, string fallback)
+	{
+		if (dict == null || !dict.ContainsKey(key)) return fallback;
+		return dict[key].AsString();
+	}
+
+	private static Godot.Collections.Dictionary GetDictionary(Godot.Collections.Dictionary dict, string key)
+	{
+		if (dict == null || !dict.ContainsKey(key)) return null;
+		return dict[key].VariantType == Variant.Type.Dictionary ? dict[key].AsGodotDictionary() : null;
 	}
 }
