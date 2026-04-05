@@ -2,6 +2,7 @@
 extends VBoxContainer
 
 signal generate_pressed(config)
+signal continue_settings_requested(direction)
 
 @onready var length_field = $"VBoxContainer/HBoxContainer X/Xbox"
 @onready var width_field = $"VBoxContainer/HBoxContainer Z/Zbox"
@@ -27,6 +28,9 @@ signal generate_pressed(config)
 @onready var road_texture_path_edit = $"HBoxContainerRoadTexture/RoadTexturePath"
 @onready var road_texture_button = $"HBoxContainerRoadTexture/RoadTextureButton"
 @onready var road_texture_file_dialog = $"HBoxContainerRoadTexture/RoadTextureFileDialog"
+
+var continue_generation_check: CheckBox = null
+var continue_direction_selector: OptionButton = null
 
 @onready var random_block = $"VBoxContainer"
 @onready var realmap_block = $"VBoxContainerRealMap"
@@ -116,6 +120,7 @@ func _ready():
 	
 	# Настраиваем дороги
 	_setup_roads()
+	_setup_continue_generation_controls()
 	_setup_scatter_objects()
 	if scatter_section:
 		scatter_section.visible = not real_map_check.button_pressed
@@ -317,6 +322,115 @@ func _setup_roads():
 	if road_texture_file_dialog:
 		road_texture_file_dialog.file_selected.connect(_on_road_texture_file_selected)
 
+func _setup_continue_generation_controls() -> void:
+	if random_block == null:
+		return
+	if random_block.get_node_or_null("ContinueGenerationRow"):
+		continue_generation_check = random_block.get_node_or_null("ContinueGenerationRow/ContinueGenerationCheck")
+		continue_direction_selector = random_block.get_node_or_null("ContinueGenerationRow/ContinueDirection")
+		if continue_generation_check and not continue_generation_check.toggled.is_connected(_on_continue_generation_toggled):
+			continue_generation_check.toggled.connect(_on_continue_generation_toggled)
+		if continue_direction_selector and not continue_direction_selector.item_selected.is_connected(_on_continue_direction_selected):
+			continue_direction_selector.item_selected.connect(_on_continue_direction_selected)
+		_update_continue_generation_ui()
+		return
+
+	var row := HBoxContainer.new()
+	row.name = "ContinueGenerationRow"
+
+	continue_generation_check = CheckBox.new()
+	continue_generation_check.name = "ContinueGenerationCheck"
+	continue_generation_check.text = "Продолжить генерацию мэша"
+	continue_generation_check.tooltip_text = "Работает только если выбран узел TerrainGenerator с уже созданным мэшем."
+	row.add_child(continue_generation_check)
+
+	continue_direction_selector = OptionButton.new()
+	continue_direction_selector.name = "ContinueDirection"
+	continue_direction_selector.add_item("x+")
+	continue_direction_selector.add_item("x-")
+	continue_direction_selector.add_item("z+")
+	continue_direction_selector.add_item("z-")
+	continue_direction_selector.selected = 0
+	continue_direction_selector.disabled = true
+	row.add_child(continue_direction_selector)
+
+	random_block.add_child(row)
+
+	continue_generation_check.toggled.connect(_on_continue_generation_toggled)
+	continue_direction_selector.item_selected.connect(_on_continue_direction_selected)
+	_update_continue_generation_ui()
+
+func _on_continue_generation_toggled(_on: bool) -> void:
+	_update_continue_generation_ui()
+	if continue_generation_check and continue_generation_check.button_pressed:
+		emit_signal("continue_settings_requested", _get_continue_direction())
+
+func _on_continue_direction_selected(_index: int) -> void:
+	_update_continue_generation_ui()
+	if continue_generation_check and continue_generation_check.button_pressed:
+		emit_signal("continue_settings_requested", _get_continue_direction())
+
+func _get_continue_direction() -> String:
+	if continue_direction_selector == null:
+		return "x+"
+	return continue_direction_selector.get_item_text(continue_direction_selector.selected)
+
+func _set_spinbox_editable(spin: SpinBox, editable: bool) -> void:
+	if spin == null:
+		return
+	spin.editable = editable
+	spin.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
+
+func _update_continue_generation_ui() -> void:
+	var continuation_enabled := continue_generation_check != null and continue_generation_check.button_pressed
+	if continue_direction_selector:
+		continue_direction_selector.disabled = not continuation_enabled
+
+	var lock_width := false
+	var lock_length := false
+	if continuation_enabled and continue_direction_selector:
+		var dir_text := continue_direction_selector.get_item_text(continue_direction_selector.selected)
+		if dir_text == "x+" or dir_text == "x-":
+			lock_width = true
+		elif dir_text == "z+" or dir_text == "z-":
+			lock_length = true
+
+	_set_spinbox_editable(length_field, not lock_length)
+	_set_spinbox_editable(width_field, not lock_width)
+	_set_spinbox_editable(water_level_field, not continuation_enabled)
+
+func apply_continue_source_settings(data: Dictionary) -> void:
+	if data == null or data.is_empty():
+		return
+
+	if data.has("min_height"):
+		min_height_field.value = float(data["min_height"])
+	if data.has("max_height"):
+		max_height_field.value = float(data["max_height"])
+	if data.has("resolution"):
+		resolution_field.value = int(data["resolution"])
+	if data.has("sand_grass"):
+		sand_grass_field.value = float(data["sand_grass"])
+	if data.has("grass_rock"):
+		grass_rock_field.value = float(data["grass_rock"])
+	if data.has("smoothing") and smoothing_slider:
+		smoothing_slider.value = float(data["smoothing"])
+	if data.has("texture_mode") and texture_mode_selector:
+		texture_mode_selector.selected = int(data["texture_mode"])
+		_update_texture_mode_ui()
+	if data.has("slope_blend") and slope_blend_slider:
+		slope_blend_slider.value = float(data["slope_blend"])
+	if data.has("water_level"):
+		water_level_field.value = float(data["water_level"])
+
+	var direction := _get_continue_direction()
+	if (direction == "x+" or direction == "x-") and data.has("source_width"):
+		width_field.value = int(data["source_width"])
+	elif (direction == "z+" or direction == "z-") and data.has("source_length"):
+		length_field.value = int(data["source_length"])
+
+	_update_continue_generation_ui()
+
 func _on_road_texture_button_pressed():
 	if road_texture_file_dialog:
 		road_texture_file_dialog.popup_centered()
@@ -483,6 +597,8 @@ func _on_generate_button_pressed() -> void:
 	var slope_blend = float(slope_blend_slider.value) if slope_blend_slider else 0.5
 	var generate_roads = roads_check.button_pressed if roads_check else false
 	var road_texture_path = road_texture_path_edit.text if road_texture_path_edit else ""
+	var continue_generation = continue_generation_check.button_pressed if continue_generation_check else false
+	var continue_direction = continue_direction_selector.get_item_text(continue_direction_selector.selected) if continue_direction_selector else "x+"
 	var scatter_settings: Dictionary = {}
 	var generate_island := false
 	if not real_map_check.button_pressed:
@@ -515,6 +631,8 @@ func _on_generate_button_pressed() -> void:
 		"slope_blend": slope_blend,
 		"generate_roads": generate_roads,
 		"road_texture_path": road_texture_path,
+		"continue_generation": continue_generation,
+		"continue_direction": continue_direction,
 		"generate_island": generate_island,
 		"scatter_settings": scatter_settings
 	}
