@@ -29,12 +29,12 @@ public static class TerraConfig
 
 	public static float GetTileScaleForSize(int maxSize)
 	{
-		if (maxSize > 500) return 16.0f;
-		if (maxSize > 300) return 12.0f;
-		if (maxSize > 200) return 10.0f;
-		if (maxSize > 100) return 8.0f;
-		if (maxSize > 50) return 6.0f;
-		return 4.0f;
+		// Adaptive continuous formula instead of hard thresholds.
+		// Fitted to keep close-up detail on large maps while avoiding over-tiling on small maps.
+		// Approx targets: 50 -> ~5, 100 -> ~8, 300 -> ~15, 500 -> ~21, 1200 -> ~36.
+		float size = Mathf.Max(1.0f, maxSize);
+		float tileScale = 0.439f * Mathf.Pow(size, 0.621f);
+		return Mathf.Clamp(tileScale, 5.0f, 60.0f);
 	}
 
 	public static float GetRoadWidthForTerrain(int length, int width)

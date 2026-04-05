@@ -226,8 +226,12 @@ public static class TerrainTexturePainter
 		// Используем формулу: базовое разрешение + дополнительное разрешение в зависимости от размера
 		int maxMapSize = Mathf.Max(mapSizeX, mapSizeZ);
 		int texRes = TerraConfig.GetTextureResolutionForSize(maxMapSize);
+		float tileScale = TerraConfig.GetTileScaleForSize(maxMapSize);
+		float tileScaleX = tileScale * (mapSizeX / (float)maxMapSize);
+		float tileScaleZ = tileScale * (mapSizeZ / (float)maxMapSize);
 		
 		GD.Print($"📐 Размер карты: {mapSizeX}x{mapSizeZ}, Разрешение текстуры: {texRes}x{texRes}");
+		GD.Print($"🧵 Тайлинг текстур: X={tileScaleX:F2}, Z={tileScaleZ:F2}, base={tileScale:F2}");
 		
 		// Проверяем маску дорог, если она передана
 		if (roadMask != null)
@@ -342,14 +346,11 @@ public static class TerrainTexturePainter
 				float h = heightRange > 0.001f ? (maxHeight - height) / heightRange : 0.5f;
 				h = Mathf.Clamp(h, 0f, 1f);
 
-				// Получаем пиксели из исходных текстур с tiling для большей детализации
-				// Рассчитываем tileScale в зависимости от размера карты для лучшей детализации
-				// Для больших карт увеличиваем количество повторений текстуры
-				float tileScale = TerraConfig.GetTileScaleForSize(maxMapSize);
-				
-				Color sandColor = GetSample(sandImg, x, z, texRes, tileScale);
-				Color grassColor = GetSample(grassImg, x, z, texRes, tileScale);
-				Color rockColor = GetSample(rockImg, x, z, texRes, tileScale);
+				// Получаем пиксели с раздельным тайлингом по X/Z, чтобы плотность
+				// текстуры была одинаковой на метр даже у вытянутых карт.
+				Color sandColor = GetSample(sandImg, x, z, texRes, tileScaleX, tileScaleZ);
+				Color grassColor = GetSample(grassImg, x, z, texRes, tileScaleX, tileScaleZ);
+				Color rockColor = GetSample(rockImg, x, z, texRes, tileScaleX, tileScaleZ);
 
 				Color finalColor;
 				
@@ -535,7 +536,7 @@ public static class TerrainTexturePainter
 						{
 							// Получаем цвет дороги из текстуры с tiling
 							// Используем то же значение tileScale, что и для основных текстур
-							Color roadColor = GetSample(roadImg, x, z, texRes, tileScale);
+							Color roadColor = GetSample(roadImg, x, z, texRes, tileScaleX, tileScaleZ);
 							
 							// ВАЖНО: Дороги должны накладываться с полной силой там, где maskValue близко к 1.0
 							// Используем более агрессивное смешивание для лучшей видимости дорог
@@ -607,12 +608,12 @@ public static class TerrainTexturePainter
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам
 	// Используем tiling (повторение) для увеличения детализации
 	// Использует билинейную интерполяцию для плавных переходов и скрытия швов
-	private static Color GetSample(Image img, int x, int z, int texRes, float tileScale = 4.0f)
+	private static Color GetSample(Image img, int x, int z, int texRes, float tileScaleX = 4.0f, float tileScaleZ = 4.0f)
 	{
 		// Применяем tiling - текстура повторяется несколько раз
-		// tileScale определяет, сколько раз текстура повторяется по поверхности
-		float u = ((float)x / (texRes - 1)) * tileScale;
-		float v = ((float)z / (texRes - 1)) * tileScale;
+		// tileScaleX/tileScaleZ определяют повторение по каждой оси независимо.
+		float u = ((float)x / (texRes - 1)) * tileScaleX;
+		float v = ((float)z / (texRes - 1)) * tileScaleZ;
 		
 		// Используем модуль для создания повторяющегося паттерна
 		u = u - Mathf.Floor(u);
