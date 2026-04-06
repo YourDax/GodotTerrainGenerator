@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 [Tool]
 public static class TerrainTexturePainter
 {
-	private const bool VerboseTextureLogs = false;
+	private static readonly bool VerboseTextureLogs = false;
 	private static readonly Dictionary<string, Image> ImageCache = new();
 
 	public static async Task ApplyHeightTexture(

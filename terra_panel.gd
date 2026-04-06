@@ -62,6 +62,21 @@ const SCATTER_CATEGORIES := [
 	["other", "Другое"],
 ]
 
+const SCATTER_DEFAULT_RELATIVE_PATHS := {
+	"trees": [
+		"Texture/source/tree.tscn",
+		"Texture/source/tree2.tscn",
+	],
+	"bushes": [
+		"Texture/source/bush.tscn",
+	],
+	"stones": [
+		"Texture/source/rock.tscn",
+		"Texture/source/rock2.tscn",
+	],
+	"other": [],
+}
+
 @onready var real_map_check = $"MainScroll/MainContent/SectionMode/Body/RealMapCheck"
 @onready var leftuplat_input = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerLeftUpLat/LeftUpLat"
 @onready var leftuplng_input = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerLeftUpLng/LeftUpLng"
@@ -872,6 +887,7 @@ func _rebuild_scatter_rows(cat_key: String) -> void:
 		return
 	var rows_parent: VBoxContainer = ui["rows_parent"]
 	var spin_variants: SpinBox = ui["variants"]
+	var default_paths := _get_scatter_default_paths(cat_key)
 	var previous_paths: Array[String] = []
 	if ui.has("rows"):
 		for old_row in ui["rows"]:
@@ -890,8 +906,10 @@ func _rebuild_scatter_rows(cat_key: String) -> void:
 		var le := LineEdit.new()
 		le.placeholder_text = "res://... или файл модели"
 		le.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if i < previous_paths.size():
+		if i < previous_paths.size() and previous_paths[i].strip_edges() != "":
 			le.text = previous_paths[i]
+		elif i < default_paths.size():
+			le.text = default_paths[i]
 		var btn := Button.new()
 		btn.text = "Обзор..."
 		var idx := i
@@ -915,6 +933,18 @@ func _on_scatter_file_selected(path: String) -> void:
 	var row: Dictionary = rows[_pending_scatter_row]
 	var le: LineEdit = row["line"]
 	le.text = path
+
+func _get_scatter_default_paths(cat_key: String) -> Array[String]:
+	var out: Array[String] = []
+	if not SCATTER_DEFAULT_RELATIVE_PATHS.has(cat_key):
+		return out
+	var rel_paths: Array = SCATTER_DEFAULT_RELATIVE_PATHS[cat_key]
+	var root := _addon_root_path()
+	for rel in rel_paths:
+		var full_path := root.path_join(str(rel))
+		if ResourceLoader.exists(full_path):
+			out.append(full_path)
+	return out
 
 func _build_scatter_settings() -> Dictionary:
 	var out := {}

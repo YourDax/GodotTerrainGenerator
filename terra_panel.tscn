@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3 uid="uid://b8b4r624p1cj8"]
 
-[ext_resource type="Script" uid="uid://beoun4ig67evt" path="terra_panel.gd" id="1_ker3i"]
+[ext_resource type="Script" path="terra_panel.gd" id="1_ker3i"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ker3i"]
 content_margin_left = 10.0
@@ -309,14 +309,14 @@ layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
 step = 0.01
-value = 1.0
+value = 0.5
 
 [node name="SmoothingValue" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Smoothing"]
 custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
 size_flags_horizontal = 0
 theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
-text = "1.00"
+text = "0.50"
 
 [node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Smoothing"]
 custom_minimum_size = Vector2(190, 0)

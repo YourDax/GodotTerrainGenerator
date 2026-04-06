@@ -84,8 +84,9 @@ public static class MeshBuilder
 				float hills = hillNoise.GetNoise2D(wx, wz) * 0.4f; // 40% влияния
 				
 				// 3. Мелкомасштабный шум - детали поверхности
-				// Добавляет мелкие неровности, но только если smoothing > 0
-				float details = detailNoise.GetNoise2D(wx, wz) * 0.15f * smoothing; // 15% влияния, зависит от smoothing
+				// Чем выше smoothing, тем меньше микродеталей (более гладкая поверхность).
+				float detailAmount = 1.0f - Mathf.Clamp(smoothing, 0.0f, 1.0f);
+				float details = detailNoise.GetNoise2D(wx, wz) * 0.15f * detailAmount;
 				
 				// Комбинируем все слои
 				// Крупные формы имеют наибольший вес, детали - наименьший
@@ -169,13 +170,15 @@ public static class MeshBuilder
 			}
 		}
 
-		// Генерируем нормали для сглаживания поверхности
-		// Если сглаживание меньше 1.0, применяем дополнительное сглаживание к вершинам
-		if (smoothing < 1.0f)
+		// Дополнительное сглаживание вершин:
+		// чем больше smoothing, тем сильнее сглаживание.
+		smoothing = Mathf.Clamp(smoothing, 0.0f, 1.0f);
+		if (smoothing > 0.0f)
 		{
 			// Применяем простое сглаживание вершин для более плавного рельефа
 			// Проходим по внутренним вершинам и сглаживаем их высоту
-			for (int iteration = 0; iteration < Mathf.RoundToInt((1.0f - smoothing) * 3.0f); iteration++)
+			int iterations = Mathf.Max(1, Mathf.RoundToInt(smoothing * 3.0f));
+			for (int iteration = 0; iteration < iterations; iteration++)
 			{
 				Vector3[] smoothedVertices = new Vector3[vertices.Length];
 				System.Array.Copy(vertices, smoothedVertices, vertices.Length);
@@ -194,11 +197,12 @@ public static class MeshBuilder
 							vertices[idx + resolution].Y // нижний
 						) / 4.0f;
 						
-						// Интерполируем между исходной и сглаженной высотой
+						// Интерполируем между исходной и средней высотой;
+						// при большом smoothing сильнее тянем к среднему.
 						float originalHeight = vertices[idx].Y;
 						smoothedVertices[idx] = new Vector3(
 							vertices[idx].X,
-							Mathf.Lerp(originalHeight, avgHeight, 0.5f * (1.0f - smoothing)),
+							Mathf.Lerp(originalHeight, avgHeight, 0.5f * smoothing),
 							vertices[idx].Z
 						);
 					}
