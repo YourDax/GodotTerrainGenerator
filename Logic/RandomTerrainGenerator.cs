@@ -144,6 +144,7 @@ public partial class RandomTerrainGenerator : Node
 
 		// Применяем материал к воде
 		water.MaterialOverride = mat;
+		water.SetMeta("terrain_is_water", true);
 
 		// Возвращаем объект воды
 		return water;

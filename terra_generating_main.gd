@@ -35,7 +35,7 @@ func _on_editor_selection_changed():
 func _on_continue_settings_requested(direction: String):
 	var data = _build_continue_source_settings(direction)
 	if data.is_empty():
-		push_error("Не удалось импортировать настройки: выберите TerrainGenerator с существующим GeneratedMesh")
+		push_error("Не удалось импортировать настройки: выберите TerrainGenerator с существующим terrain-мэшем")
 		return
 	if panel and panel.has_method("apply_continue_source_settings"):
 		panel.call("apply_continue_source_settings", data)
@@ -107,10 +107,12 @@ func _collect_frontier_meshes(root: Node3D, direction: String) -> Array:
 		if not (child is MeshInstance3D):
 			continue
 		var mesh_child: MeshInstance3D = child
-		if not str(mesh_child.name).begins_with("GeneratedMesh"):
+		if not _is_continuation_terrain_mesh(mesh_child):
 			continue
 		var length = int(mesh_child.get_meta("terrain_length")) if mesh_child.has_meta("terrain_length") else int(round(mesh_child.get_aabb().size.x))
 		var width = int(mesh_child.get_meta("terrain_width")) if mesh_child.has_meta("terrain_width") else int(round(mesh_child.get_aabb().size.z))
+		if length <= 0 or width <= 0:
+			continue
 		var face := 0.0
 		var axis_min := 0.0
 		var axis_max := 0.0
@@ -168,13 +170,34 @@ func _find_nearest_water_plane(root: Node3D, around_pos: Vector3) -> MeshInstanc
 		if not (child is MeshInstance3D):
 			continue
 		var mesh_child: MeshInstance3D = child
-		if not str(mesh_child.name).begins_with("WaterPlane"):
+		if not _is_water_mesh(mesh_child):
 			continue
 		var d = around_pos.distance_squared_to(mesh_child.position)
 		if d < best_dist:
 			best_dist = d
 			best = mesh_child
 	return best
+
+func _is_continuation_terrain_mesh(mesh_child: MeshInstance3D) -> bool:
+	if mesh_child == null or mesh_child.mesh == null:
+		return false
+	if mesh_child.has_meta("terrain_length") or mesh_child.has_meta("terrain_width") or mesh_child.has_meta("terrain_resolution"):
+		return true
+	var n := str(mesh_child.name)
+	if n.begins_with("GeneratedMesh") or n.begins_with("GeneratedTerrain"):
+		return true
+	# Fallback для случаев, когда имя было автоматически сброшено в "MeshInstance3D".
+	var size := mesh_child.get_aabb().size
+	if n == "MeshInstance3D" and size.x >= 8.0 and size.z >= 8.0:
+		return true
+	return false
+
+func _is_water_mesh(mesh_child: MeshInstance3D) -> bool:
+	if mesh_child == null or mesh_child.mesh == null:
+		return false
+	if mesh_child.has_meta("terrain_is_water"):
+		return bool(mesh_child.get_meta("terrain_is_water"))
+	return str(mesh_child.name).begins_with("WaterPlane")
 
 func _on_generate_pressed(config: Dictionary):
 	var real_map_mode := bool(config.get("real_map_mode", false))
@@ -205,10 +228,10 @@ func _on_generate_pressed(config: Dictionary):
 			return
 		var existing_mesh_count := 0
 		for child in selected_node.get_children():
-			if child is MeshInstance3D and str(child.name).begins_with("GeneratedMesh"):
+			if child is MeshInstance3D and _is_continuation_terrain_mesh(child):
 				existing_mesh_count += 1
 		if existing_mesh_count == 0:
-			push_error("В выбранном TerrainGenerator нет сгенерированных мэшей для продолжения!")
+			push_error("В выбранном TerrainGenerator нет подходящих terrain-мэшей для продолжения!")
 			return
 		terrain_instance = selected_node
 		print("Продолжение генерации в существующем TerrainGenerator")

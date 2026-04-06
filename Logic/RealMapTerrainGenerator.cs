@@ -112,8 +112,13 @@ public static class RealMapTerrainGenerator
 		var meshInstance = new MeshInstance3D
 		{
 			Mesh = mesh,
-			Name = "GeneratedTerrain"
+			Name = "GeneratedMesh_RealMap"
 		};
+		meshInstance.SetMeta("terrain_length", Mathf.Max(1, Mathf.RoundToInt(meta.WidthUnits)));
+		meshInstance.SetMeta("terrain_width", Mathf.Max(1, Mathf.RoundToInt(meta.DepthUnits)));
+		meshInstance.SetMeta("terrain_resolution", Mathf.Max(4, resolution));
+		meshInstance.SetMeta("terrain_min_height", meta.MinVy);
+		meshInstance.SetMeta("terrain_max_height", meta.MaxVy);
 
 		// Без поворота: сохраняем естественную ориентацию осей карты
 		// X: запад -> восток, Z: юг -> север (см. BuildCenteredMesh).
@@ -184,6 +189,7 @@ public static class RealMapTerrainGenerator
 			GD.Print($"🌊 OSM: вода найдена (полигонов: {waterPolys.Count}), добавляю плоскость воды");
 			var water = new RandomTerrainGenerator().GenerateWaterPlane((int)Mathf.Round(meta.WidthUnits), (int)Mathf.Round(meta.DepthUnits), worldWaterY);
 			water.Name = "WaterPlane";
+			water.SetMeta("terrain_is_water", true);
 			parent.AddChild(water);
 			if (owner != null) water.Owner = owner;
 		}

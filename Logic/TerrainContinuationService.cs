@@ -60,7 +60,7 @@ public static class TerrainContinuationService
 
 		List<FrontierCandidate> candidates = CollectFrontierCandidates(root, direction);
 		if (candidates.Count == 0)
-			throw new InvalidOperationException("В узле нет GeneratedMesh для продолжения.");
+			throw new InvalidOperationException("В узле нет подходящих terrain-мешей для продолжения.");
 
 		float frontierFace = direction == ContinueDirection.XPlus || direction == ContinueDirection.ZPlus
 			? float.NegativeInfinity
@@ -340,10 +340,11 @@ public static class TerrainContinuationService
 		foreach (Node child in root.GetChildren())
 		{
 			if (child is not MeshInstance3D mesh) continue;
-			if (!mesh.Name.ToString().StartsWith("GeneratedMesh")) continue;
+			if (!IsTerrainContinuationCandidate(mesh)) continue;
 
 			int len = GetMeshMetaInt(mesh, "terrain_length", Mathf.RoundToInt(mesh.GetAabb().Size.X));
 			int wid = GetMeshMetaInt(mesh, "terrain_width", Mathf.RoundToInt(mesh.GetAabb().Size.Z));
+			if (len <= 0 || wid <= 0) continue;
 			int res = GetMeshMetaInt(mesh, "terrain_resolution", -1);
 			if (res < 4) res = GuessResolutionFromMesh(mesh);
 			res = Mathf.Max(4, res);
@@ -484,7 +485,7 @@ public static class TerrainContinuationService
 		foreach (Node child in root.GetChildren())
 		{
 			if (child is not MeshInstance3D mi) continue;
-			if (!mi.Name.ToString().StartsWith("WaterPlane")) continue;
+			if (!IsWaterCandidate(mi)) continue;
 			float d = around.DistanceSquaredTo(mi.Position);
 			if (d < bestDist)
 			{
@@ -493,6 +494,36 @@ public static class TerrainContinuationService
 			}
 		}
 		return best?.Position.Y;
+	}
+
+	private static bool IsTerrainContinuationCandidate(MeshInstance3D mesh)
+	{
+		if (mesh == null || mesh.Mesh == null)
+			return false;
+
+		if (mesh.HasMeta("terrain_length") || mesh.HasMeta("terrain_width") || mesh.HasMeta("terrain_resolution"))
+			return true;
+
+		string name = mesh.Name.ToString();
+		if (name.StartsWith("GeneratedMesh") || name.StartsWith("GeneratedTerrain"))
+			return true;
+
+		Vector3 size = mesh.GetAabb().Size;
+		if (name == "MeshInstance3D" && size.X >= 8f && size.Z >= 8f)
+			return true;
+
+		return false;
+	}
+
+	private static bool IsWaterCandidate(MeshInstance3D mesh)
+	{
+		if (mesh == null || mesh.Mesh == null)
+			return false;
+
+		if (mesh.HasMeta("terrain_is_water"))
+			return mesh.GetMeta("terrain_is_water").AsBool();
+
+		return mesh.Name.ToString().StartsWith("WaterPlane");
 	}
 
 	private static float[,] ExtractHeightsFromMeshByUv(MeshInstance3D meshInstance, int resolution, bool debugLogging)
