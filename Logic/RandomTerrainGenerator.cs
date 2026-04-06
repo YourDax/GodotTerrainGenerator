@@ -11,7 +11,13 @@ public partial class RandomTerrainGenerator : Node
 		int resolution,
 		float smoothing = 1.0f,
 		bool generateIsland = false,
-		float waterLevel01 = 0.35f
+		float waterLevel01 = 0.35f,
+		int baseSeed = -1,
+		int hillSeed = -1,
+		int detailSeed = -1,
+		int coastSeed = -1,
+		float noiseSampleOffsetX = 0f,
+		float noiseSampleOffsetZ = 0f
 	)
 	{
 		// Вычисляем размер карты для адаптивной генерации
@@ -25,11 +31,16 @@ public partial class RandomTerrainGenerator : Node
 		float baseFrequency = 1.0f / (maxSize * 0.5f); // Адаптивная частота
 		baseFrequency = Mathf.Clamp(baseFrequency, 0.001f, 0.02f); // Ограничиваем диапазон
 		
+		int actualBaseSeed = baseSeed >= 0 ? baseSeed : (int)GD.Randi();
+		int actualHillSeed = hillSeed >= 0 ? hillSeed : (int)GD.Randi() + 1000;
+		int actualDetailSeed = detailSeed >= 0 ? detailSeed : (int)GD.Randi() + 2000;
+		int actualCoastSeed = coastSeed >= 0 ? coastSeed : (int)GD.Randi() + 9001;
+
 		var baseNoise = new FastNoiseLite
 		{
 			NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
 			Frequency = baseFrequency,
-			Seed = (int)GD.Randi(),
+			Seed = actualBaseSeed,
 			FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
 			FractalOctaves = 4, // Больше октав для более плавных крупных форм
 			FractalLacunarity = 2.0f,
@@ -41,7 +52,7 @@ public partial class RandomTerrainGenerator : Node
 		{
 			NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
 			Frequency = baseFrequency * 3.0f, // В 3 раза выше частота
-			Seed = (int)GD.Randi() + 1000, // Другое зерно
+			Seed = actualHillSeed, // Другое зерно
 			FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
 			FractalOctaves = 3,
 			FractalLacunarity = 2.0f,
@@ -53,7 +64,7 @@ public partial class RandomTerrainGenerator : Node
 		{
 			NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
 			Frequency = baseFrequency * 8.0f, // В 8 раз выше частота
-			Seed = (int)GD.Randi() + 2000, // Другое зерно
+			Seed = actualDetailSeed, // Другое зерно
 			FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
 			FractalOctaves = 2,
 			FractalLacunarity = 2.0f,
@@ -67,20 +78,22 @@ public partial class RandomTerrainGenerator : Node
 		float islandSeabedFrac = 0.18f;
 		if (generateIsland)
 		{
+			var islandRng = new RandomNumberGenerator();
+			islandRng.Seed = (ulong)actualCoastSeed;
 			coastNoise = new FastNoiseLite
 			{
 				NoiseType = FastNoiseLite.NoiseTypeEnum.Perlin,
 				Frequency = 0.08f,
-				Seed = (int)GD.Randi() + 9001,
+				Seed = actualCoastSeed,
 				FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
 				FractalOctaves = 2,
 				FractalLacunarity = 2.0f,
 				FractalGain = 0.45f
 			};
-			islandCoastWidth = Mathf.Lerp(0.10f, 0.32f, GD.Randf());
-			islandCliffExp = Mathf.Lerp(0.45f, 2.9f, GD.Randf());
-			islandNoiseAmp = Mathf.Lerp(0.025f, 0.11f, GD.Randf());
-			islandSeabedFrac = Mathf.Lerp(0.14f, 0.28f, GD.Randf());
+			islandCoastWidth = Mathf.Lerp(0.10f, 0.32f, islandRng.Randf());
+			islandCliffExp = Mathf.Lerp(0.45f, 2.9f, islandRng.Randf());
+			islandNoiseAmp = Mathf.Lerp(0.025f, 0.11f, islandRng.Randf());
+			islandSeabedFrac = Mathf.Lerp(0.14f, 0.28f, islandRng.Randf());
 		}
 
 		// Генерация меша через MeshBuilder с переданными шумами
@@ -98,7 +111,9 @@ public partial class RandomTerrainGenerator : Node
 			islandCliffExp,
 			islandNoiseAmp,
 			islandSeabedFrac,
-			coastNoise
+			coastNoise,
+			noiseSampleOffsetX,
+			noiseSampleOffsetZ
 		);
 	}
 

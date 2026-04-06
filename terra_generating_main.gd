@@ -56,11 +56,56 @@ func _build_continue_source_settings(direction: String) -> Dictionary:
 		return {}
 
 	var source_mesh: MeshInstance3D = frontier[0]["mesh"]
-	var min_h = float(source_mesh.get_meta("terrain_min_height")) if source_mesh.has_meta("terrain_min_height") else 0.0
-	var max_h = float(source_mesh.get_meta("terrain_max_height")) if source_mesh.has_meta("terrain_max_height") else 25.0
+	var min_h := INF
+	var max_h := -INF
 	var length = int(source_mesh.get_meta("terrain_length")) if source_mesh.has_meta("terrain_length") else int(round(source_mesh.get_aabb().size.x))
 	var width = int(source_mesh.get_meta("terrain_width")) if source_mesh.has_meta("terrain_width") else int(round(source_mesh.get_aabb().size.z))
-	var resolution = int(source_mesh.get_meta("terrain_resolution")) if source_mesh.has_meta("terrain_resolution") else 100
+	var resolution := 4
+	var sand_grass_sum := 0.0
+	var grass_rock_sum := 0.0
+	var smoothing_sum := 0.0
+	var slope_blend_sum := 0.0
+	var texture_mode_freq := {}
+	var stat_count := 0
+	var center_accum := Vector3.ZERO
+	for f in frontier:
+		var m: MeshInstance3D = f["mesh"]
+		var f_min = float(m.get_meta("terrain_min_height")) if m.has_meta("terrain_min_height") else m.get_aabb().position.y
+		var f_max = float(m.get_meta("terrain_max_height")) if m.has_meta("terrain_max_height") else (m.get_aabb().position.y + m.get_aabb().size.y)
+		min_h = min(min_h, f_min)
+		max_h = max(max_h, f_max)
+		if m.has_meta("terrain_resolution"):
+			resolution = max(resolution, int(m.get_meta("terrain_resolution")))
+		if m.has_meta("terrain_sand_grass"):
+			sand_grass_sum += float(m.get_meta("terrain_sand_grass"))
+		else:
+			sand_grass_sum += 0.35
+		if m.has_meta("terrain_grass_rock"):
+			grass_rock_sum += float(m.get_meta("terrain_grass_rock"))
+		else:
+			grass_rock_sum += 0.65
+		if m.has_meta("terrain_smoothing"):
+			smoothing_sum += float(m.get_meta("terrain_smoothing"))
+		else:
+			smoothing_sum += 0.5
+		if m.has_meta("terrain_slope_blend"):
+			slope_blend_sum += float(m.get_meta("terrain_slope_blend"))
+		else:
+			slope_blend_sum += 0.5
+		var tm := int(m.get_meta("terrain_texture_mode")) if m.has_meta("terrain_texture_mode") else 0
+		texture_mode_freq[tm] = int(texture_mode_freq.get(tm, 0)) + 1
+		stat_count += 1
+		center_accum += m.position
+
+	if not is_finite(min_h):
+		min_h = 0.0
+	if not is_finite(max_h) or max_h <= min_h:
+		max_h = min_h + 25.0
+	if stat_count > 0:
+		sand_grass_sum /= stat_count
+		grass_rock_sum /= stat_count
+		smoothing_sum /= stat_count
+		slope_blend_sum /= stat_count
 
 	var axis_min: float = frontier[0]["axis_min"]
 	var axis_max: float = frontier[0]["axis_max"]
@@ -74,20 +119,30 @@ func _build_continue_source_settings(direction: String) -> Dictionary:
 	else:
 		length = int(round(axis_span))
 
+	var texture_mode := 0
+	var texture_mode_best := -1
+	for k in texture_mode_freq.keys():
+		var freq := int(texture_mode_freq[k])
+		if freq > texture_mode_best:
+			texture_mode_best = freq
+			texture_mode = int(k)
+
 	var out := {
 		"source_length": length,
 		"source_width": width,
 		"min_height": min_h,
 		"max_height": max_h,
 		"resolution": resolution,
-		"sand_grass": float(source_mesh.get_meta("terrain_sand_grass")) if source_mesh.has_meta("terrain_sand_grass") else 0.35,
-		"grass_rock": float(source_mesh.get_meta("terrain_grass_rock")) if source_mesh.has_meta("terrain_grass_rock") else 0.65,
-		"smoothing": float(source_mesh.get_meta("terrain_smoothing")) if source_mesh.has_meta("terrain_smoothing") else 1.0,
-		"texture_mode": int(source_mesh.get_meta("terrain_texture_mode")) if source_mesh.has_meta("terrain_texture_mode") else 0,
-		"slope_blend": float(source_mesh.get_meta("terrain_slope_blend")) if source_mesh.has_meta("terrain_slope_blend") else 0.5,
+		"sand_grass": clamp(sand_grass_sum, 0.0, 1.0),
+		"grass_rock": clamp(grass_rock_sum, 0.0, 1.0),
+		"smoothing": clamp(smoothing_sum, 0.0, 1.0),
+		"texture_mode": texture_mode,
+		"slope_blend": clamp(slope_blend_sum, 0.0, 1.0),
 	}
 
 	var center_pos := source_mesh.position
+	if stat_count > 0:
+		center_pos = center_accum / float(stat_count)
 	if direction == "x+" or direction == "x-":
 		center_pos.z = (axis_min + axis_max) * 0.5
 	else:

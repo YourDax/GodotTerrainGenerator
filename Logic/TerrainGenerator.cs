@@ -7,6 +7,10 @@ using System.Threading.Tasks;
 public partial class TerrainGenerator : Node3D
 {
 	private const bool ContinuationDebugLogging = true;
+	private const string MetaNoiseSeedBase = "terrain_noise_seed_base";
+	private const string MetaNoiseSeedHill = "terrain_noise_seed_hill";
+	private const string MetaNoiseSeedDetail = "terrain_noise_seed_detail";
+	private const string MetaNoiseSeedCoast = "terrain_noise_seed_coast";
 	private bool _cancelRequested = false;
 
 	// Сигнал для обновления прогресса
@@ -255,6 +259,22 @@ public partial class TerrainGenerator : Node3D
 		GD.Print("📦 Создаю RandomTerrainGenerator...");
 		var random = new RandomTerrainGenerator();
 
+		float yOffset = (maxHeight - minHeight) * 0.5f;
+		Vector3 plannedPosition = continuation == null
+			? new Vector3(0f, yOffset, 0f)
+			: TerrainContinuationService.ComputeContinuationPosition(continuation, length, width, yOffset);
+
+		int baseSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedBase, 10000);
+		int hillSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedHill, 11000);
+		int detailSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedDetail, 12000);
+		int coastSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedCoast, 13000);
+
+		if (ContinuationDebugLogging)
+		{
+			GD.Print($"🧪 CONT noise seeds: base={baseSeed} hill={hillSeed} detail={detailSeed} coast={coastSeed}");
+			GD.Print($"🧪 CONT noise sample offset: x={plannedPosition.X:F2} z={plannedPosition.Z:F2}");
+		}
+
 		GD.Print($"🔨 Генерирую меш: length={length}, width={width}, resolution={resolution}");
 		Mesh mesh = random.GenerateMesh(
 			length, width,
@@ -262,7 +282,13 @@ public partial class TerrainGenerator : Node3D
 			resolution,
 			smoothing,
 			generateIsland,
-			waterLevel
+			waterLevel,
+			baseSeed,
+			hillSeed,
+			detailSeed,
+			coastSeed,
+			plannedPosition.X,
+			plannedPosition.Z
 		);
 		if (IsGenerationCanceled()) return;
 
@@ -295,11 +321,8 @@ public partial class TerrainGenerator : Node3D
 		};
 
 		meshInstance.RotateX(Mathf.Pi);
-		float yOffset = (maxHeight - minHeight) * 0.5f;
 		int chunkIndex = continuation?.NextChunkIndex ?? GetNextChunkIndex();
-		meshInstance.Position = continuation == null
-			? new Vector3(0, yOffset, 0)
-			: TerrainContinuationService.ComputeContinuationPosition(continuation, length, width, yOffset);
+		meshInstance.Position = plannedPosition;
 		meshInstance.Name = continuation == null
 			? BuildInitialMeshName(chunkIndex)
 			: BuildContinuedMeshName(continuation.DirectionText, chunkIndex);
@@ -580,6 +603,22 @@ public partial class TerrainGenerator : Node3D
 				maxIndex = idx;
 		}
 		return maxIndex + 1;
+	}
+
+	private int GetOrCreateGeneratorSeed(string metaKey, int salt)
+	{
+		if (HasMeta(metaKey))
+		{
+			Variant existing = GetMeta(metaKey);
+			if (existing.VariantType == Variant.Type.Int)
+				return existing.AsInt32();
+			if (existing.VariantType == Variant.Type.Float)
+				return Mathf.RoundToInt(existing.AsSingle());
+		}
+
+		int seed = unchecked((int)GD.Randi() + salt);
+		SetMeta(metaKey, seed);
+		return seed;
 	}
 
 	private static string BuildInitialMeshName(int index)

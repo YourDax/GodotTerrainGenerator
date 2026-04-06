@@ -46,7 +46,9 @@ public static class MeshBuilder
 		float islandCliffExponent = 1f,
 		float islandCoastNoiseAmp = 0.06f,
 		float islandSeabedDepthFrac = 0.18f,
-		FastNoiseLite islandCoastNoise = null
+		FastNoiseLite islandCoastNoise = null,
+		float noiseSampleOffsetX = 0f,
+		float noiseSampleOffsetZ = 0f
 	)
 	{
 		// Используем SurfaceTool для более гладкого меша с нормалями
@@ -69,11 +71,16 @@ public static class MeshBuilder
 				// Преобразование в мировые координаты
 				float wx = px * length - length / 2f;
 				float wz = pz * width - width / 2f;
+				float sampleX = wx + noiseSampleOffsetX;
+				// Меш далее разворачивается на X (RotateX(PI)) в TerrainGenerator,
+				// что инвертирует ось Z в мировом пространстве. Для непрерывного
+				// noise-поля между чанками семплим шум в уже согласованной системе.
+				float sampleZ = -wz + noiseSampleOffsetZ;
 
 				// Многослойная система шума для реалистичного ландшафта
 				// 1. Крупномасштабный шум - основные формы рельефа (горы, долины)
 				// Это создает основную структуру ландшафта
-				float baseNoiseValue = baseNoise.GetNoise2D(wx, wz);
+				float baseNoiseValue = baseNoise.GetNoise2D(sampleX, sampleZ);
 				
 				// Применяем степенную функцию для более плавных крупных форм
 				// Это делает горы более округлыми, а долины более широкими
@@ -81,12 +88,12 @@ public static class MeshBuilder
 				
 				// 2. Среднемасштабный шум - холмы и впадины
 				// Добавляет разнообразие к крупным формам
-				float hills = hillNoise.GetNoise2D(wx, wz) * 0.4f; // 40% влияния
+				float hills = hillNoise.GetNoise2D(sampleX, sampleZ) * 0.4f; // 40% влияния
 				
 				// 3. Мелкомасштабный шум - детали поверхности
 				// Чем выше smoothing, тем меньше микродеталей (более гладкая поверхность).
 				float detailAmount = 1.0f - Mathf.Clamp(smoothing, 0.0f, 1.0f);
-				float details = detailNoise.GetNoise2D(wx, wz) * 0.15f * detailAmount;
+				float details = detailNoise.GetNoise2D(sampleX, sampleZ) * 0.15f * detailAmount;
 				
 				// Комбинируем все слои
 				// Крупные формы имеют наибольший вес, детали - наименьший
@@ -122,7 +129,7 @@ public static class MeshBuilder
 					float dEdge = Mathf.Min(Mathf.Min(px, 1f - px), Mathf.Min(pz, 1f - pz));
 					float noiseOff = 0f;
 					if (islandCoastNoise != null)
-						noiseOff = islandCoastNoise.GetNoise2D(wx * 0.12f, wz * 0.12f) * islandCoastNoiseAmp;
+						noiseOff = islandCoastNoise.GetNoise2D(sampleX * 0.12f, sampleZ * 0.12f) * islandCoastNoiseAmp;
 					float dEff = Mathf.Clamp(dEdge + noiseOff, 0f, 0.5f);
 					float cw = Mathf.Max(islandCoastWidth, 0.06f);
 					float tIsland = Mathf.Clamp(dEff / cw, 0f, 1f);

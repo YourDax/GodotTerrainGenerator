@@ -1,9 +1,13 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 
 public static class TerrainContinuationService
 {
+	private static string _activeDebugLogPath = string.Empty;
+
 	public enum ContinueDirection
 	{
 		XPlus,
@@ -59,6 +63,7 @@ public static class TerrainContinuationService
 			throw new InvalidOperationException($"Неизвестное направление continuation: {directionText}");
 
 		List<FrontierCandidate> candidates = CollectFrontierCandidates(root, direction);
+		StartDebugLogIfNeeded(debugLogging, root, directionText, candidates);
 		if (candidates.Count == 0)
 			throw new InvalidOperationException("В узле нет подходящих terrain-мешей для продолжения.");
 
@@ -67,6 +72,7 @@ public static class TerrainContinuationService
 			: float.PositiveInfinity;
 		for (int i = 0; i < candidates.Count; i++)
 		{
+			AppendDebugLog(debugLogging, $"candidate[{i}] name={candidates[i].Mesh.Name} len={candidates[i].Length} wid={candidates[i].Width} res={candidates[i].Resolution} minH={candidates[i].MinHeight:F2} maxH={candidates[i].MaxHeight:F2} face={candidates[i].FaceCoord:F2} axis=[{candidates[i].AxisMin:F2}..{candidates[i].AxisMax:F2}] y={candidates[i].Y:F2}");
 			if (direction == ContinueDirection.XPlus || direction == ContinueDirection.ZPlus)
 				frontierFace = Mathf.Max(frontierFace, candidates[i].FaceCoord);
 			else
@@ -82,6 +88,7 @@ public static class TerrainContinuationService
 		}
 		if (frontier.Count == 0)
 			throw new InvalidOperationException("Не удалось определить фронт продолжения.");
+		AppendDebugLog(debugLogging, $"frontierCount={frontier.Count}, frontierFace={frontierFace:F3}");
 
 		frontier.Sort((a, b) => a.AxisMin.CompareTo(b.AxisMin));
 		ValidateFrontierContinuity(frontier);
@@ -118,12 +125,13 @@ public static class TerrainContinuationService
 			srcMinH = Mathf.Min(srcMinH, minH);
 			srcMaxH = Mathf.Max(srcMaxH, maxH);
 
+			const int edgeRowsToCapture = 16;
 			segments.Add(new FrontierSegment
 			{
 				Mesh = c.Mesh,
 				AxisMin = c.AxisMin,
 				AxisMax = c.AxisMax,
-				EdgeRows = BuildEdgeRowsForSegment(h, direction, 2),
+				EdgeRows = BuildEdgeRowsForSegment(h, direction, edgeRowsToCapture),
 			});
 
 			if (debugLogging)
@@ -154,6 +162,11 @@ public static class TerrainContinuationService
 		if (debugLogging)
 		{
 			GD.Print($"🧭 CONT context dir={directionText} frontierFace={frontierFace:F2} axis=[{axisMin:F2}..{axisMax:F2}] span={axisSpan:F2} sourceLen={sourceLength} sourceWid={sourceWidth} suggestedRes={suggestedResolution} baseY={baseY:F2} frontierCount={frontier.Count}");
+			AppendDebugLog(true, $"context dir={directionText} axis=[{axisMin:F2}..{axisMax:F2}] span={axisSpan:F2} sourceLen={sourceLength} sourceWid={sourceWidth} suggestedRes={suggestedResolution} baseY={baseY:F2} sourceMin={srcMinH:F2} sourceMax={srcMaxH:F2} waterY={(sourceWaterY.HasValue ? sourceWaterY.Value.ToString("F2") : "null")}");
+			for (int i = 0; i < frontier.Count; i++)
+			{
+				AppendDebugLog(true, $"frontier[{i}] {frontier[i].Mesh.Name} axis=[{frontier[i].AxisMin:F2}..{frontier[i].AxisMax:F2}] face={frontier[i].FaceCoord:F2} len={frontier[i].Length} wid={frontier[i].Width} res={frontier[i].Resolution}");
+			}
 		}
 
 		return new ContinueContext
@@ -187,17 +200,20 @@ public static class TerrainContinuationService
 		Vector2[] uvArray = (Vector2[])arrays[(int)ArrayMesh.ArrayType.TexUV];
 		if (verticesArray.Length == 0 || uvArray.Length == 0) return;
 
-		int lockRows = 1;
-		int blendRows = Mathf.Clamp(Mathf.RoundToInt(resolution * 0.12f), 6, 20);
+		int availableRows = ctx.FrontierSegments[0].EdgeRows.GetLength(0);
+		int lockRows = Mathf.Clamp(Mathf.RoundToInt(resolution * 0.06f), 4, 16);
+		lockRows = Mathf.Clamp(lockRows, 2, availableRows);
+		int blendRows = Mathf.Clamp(Mathf.RoundToInt(resolution * 0.22f), lockRows + 6, Mathf.Max(lockRows + 6, Mathf.RoundToInt(resolution * 0.35f)));
 		float[,] edgeStrip = BuildCombinedEdgeStrip(ctx, resolution, lockRows, debugLogging);
+		float sourceRange = Mathf.Max(0.001f, ctx.SourceMaxHeight - ctx.SourceMinHeight);
 		if (debugLogging)
 		{
 			int mid = Mathf.Clamp((resolution - 1) / 2, 0, resolution - 1);
 			GD.Print($"🪡 CONT seam dir={ctx.DirectionText} lockRows={lockRows} blendRows={blendRows} strip[r0]=[{edgeStrip[0, 0]:F2},{edgeStrip[0, mid]:F2},{edgeStrip[0, resolution - 1]:F2}]");
 		}
 
-		float[] seamSourceSum = new float[resolution];
-		int[] seamSourceCount = new int[resolution];
+		float[] lockSourceSum = new float[resolution];
+		int[] lockSourceCount = new int[resolution];
 		for (int i = 0; i < verticesArray.Length; i++)
 		{
 			Vector3 v = verticesArray[i];
@@ -206,23 +222,24 @@ public static class TerrainContinuationService
 			int zi = Mathf.Clamp(Mathf.RoundToInt(uv.Y * (resolution - 1)), 0, resolution - 1);
 
 			int dist = GetDistanceFromSeam(ctx.Direction, xi, zi, resolution);
-			if (dist != 0)
+			if (dist != lockRows - 1)
 				continue;
 
 			int axis = GetAxisIndexAlongSeam(ctx.Direction, xi, zi, resolution);
 			axis = Mathf.Clamp(axis, 0, resolution - 1);
-			seamSourceSum[axis] += v.Y;
-			seamSourceCount[axis] += 1;
+			lockSourceSum[axis] += v.Y;
+			lockSourceCount[axis] += 1;
 		}
 
-		float[] seamOffset = new float[resolution];
+		float[] lockRowOffset = new float[resolution];
 		bool[] hasOffset = new bool[resolution];
 		for (int a = 0; a < resolution; a++)
 		{
-			if (seamSourceCount[a] <= 0)
+			if (lockSourceCount[a] <= 0)
 				continue;
-			float seamSource = seamSourceSum[a] / seamSourceCount[a];
-			seamOffset[a] = edgeStrip[0, a] - seamSource;
+			float lockSource = lockSourceSum[a] / lockSourceCount[a];
+			float lockTarget = ComputeExtrapolatedLockHeight(edgeStrip, lockRows - 1, a, sourceRange);
+			lockRowOffset[a] = lockTarget - lockSource;
 			hasOffset[a] = true;
 		}
 
@@ -239,19 +256,64 @@ public static class TerrainContinuationService
 			if (left >= 0 && right < resolution)
 			{
 				float tFill = (float)(a - left) / (right - left);
-				seamOffset[a] = Mathf.Lerp(seamOffset[left], seamOffset[right], tFill);
+				lockRowOffset[a] = Mathf.Lerp(lockRowOffset[left], lockRowOffset[right], tFill);
 				hasOffset[a] = true;
 			}
 			else if (left >= 0)
 			{
-				seamOffset[a] = seamOffset[left];
+				lockRowOffset[a] = lockRowOffset[left];
 				hasOffset[a] = true;
 			}
 			else if (right < resolution)
 			{
-				seamOffset[a] = seamOffset[right];
+				lockRowOffset[a] = lockRowOffset[right];
 				hasOffset[a] = true;
 			}
+		}
+
+		// Сглаживаем профиль смещения на lock-границе вдоль оси шва.
+		if (resolution >= 3)
+		{
+			float[] work = new float[resolution];
+			for (int a = 0; a < resolution; a++)
+				work[a] = lockRowOffset[a];
+
+			int smoothPasses = resolution >= 256 ? 2 : 1;
+			for (int pass = 0; pass < smoothPasses; pass++)
+			{
+				float[] smoothed = new float[resolution];
+				smoothed[0] = work[0];
+				smoothed[resolution - 1] = work[resolution - 1];
+				for (int a = 1; a < resolution - 1; a++)
+				{
+					smoothed[a] = work[a - 1] * 0.25f + work[a] * 0.5f + work[a + 1] * 0.25f;
+				}
+				work = smoothed;
+			}
+
+			for (int a = 0; a < resolution; a++)
+				lockRowOffset[a] = work[a];
+		}
+
+		float[] absOffsets = new float[resolution];
+		for (int a = 0; a < resolution; a++)
+			absOffsets[a] = Mathf.Abs(lockRowOffset[a]);
+		Array.Sort(absOffsets);
+		float p90Abs = absOffsets[Mathf.Clamp(Mathf.FloorToInt((absOffsets.Length - 1) * 0.90f), 0, absOffsets.Length - 1)];
+		float allowedSlopePerRow = Mathf.Max(0.55f, sourceRange * 0.006f);
+		int adaptiveBlendRows = Mathf.Clamp(
+			Mathf.CeilToInt(p90Abs / allowedSlopePerRow) + lockRows,
+			lockRows + 6,
+			Mathf.Max(lockRows + 8, Mathf.RoundToInt(resolution * 0.35f))
+		);
+		blendRows = Mathf.Max(blendRows, adaptiveBlendRows);
+
+		if (debugLogging)
+		{
+			GD.Print($"🧭 CONT seam morph: sourceRange={sourceRange:F2}, lockRows={lockRows}, blendRows={blendRows}, slopePerRow={allowedSlopePerRow:F2}");
+			AppendDebugLog(true, DescribeOffsetStats("lockRow", lockRowOffset));
+			AppendDebugLog(true, $"offsets[morph] p90Abs={p90Abs:F3} allowedSlopePerRow={allowedSlopePerRow:F3} lockRows={lockRows} blendRows={blendRows}");
+			AppendDebugLog(true, DescribeTopOffsetSamples("lockRow", lockRowOffset, 8));
 		}
 
 		for (int i = 0; i < verticesArray.Length; i++)
@@ -267,7 +329,7 @@ public static class TerrainContinuationService
 
 			if (dist < lockRows)
 			{
-				v.Y = edgeStrip[0, axis];
+				v.Y = ComputeExtrapolatedLockHeight(edgeStrip, dist, axis, sourceRange);
 				verticesArray[i] = v;
 				continue;
 			}
@@ -275,9 +337,9 @@ public static class TerrainContinuationService
 			if (dist > blendRows)
 				continue;
 
-			float t = 1f - (dist / (blendRows + 1f));
+			float t = 1f - ((dist - lockRows + 1f) / (blendRows - lockRows + 1f));
 			t = Mathf.SmoothStep(0f, 1f, t);
-			v.Y += seamOffset[axis] * t;
+			v.Y += lockRowOffset[axis] * t;
 			verticesArray[i] = v;
 		}
 
@@ -288,7 +350,130 @@ public static class TerrainContinuationService
 		if (debugLogging)
 		{
 			GD.Print($"✅ CONT seam applied dir={ctx.DirectionText} resolution={resolution} vertices={verticesArray.Length}");
+			AppendDebugLog(true, $"applied dir={ctx.DirectionText} res={resolution} vertices={verticesArray.Length} blendRows={blendRows} lockRows={lockRows}");
 		}
+	}
+
+	private static float ComputeExtrapolatedLockHeight(float[,] edgeStrip, int dist, int axis, float sourceRange)
+	{
+		int rows = edgeStrip.GetLength(0);
+		int a = Mathf.Clamp(axis, 0, edgeStrip.GetLength(1) - 1);
+		if (rows <= 1)
+			return edgeStrip[0, a];
+
+		float r0 = edgeStrip[0, a];
+		float r1 = edgeStrip[Mathf.Min(1, rows - 1), a];
+		float r2 = edgeStrip[Mathf.Min(2, rows - 1), a];
+
+		// Продолжаем локальный тренд на границе:
+		// slopeToSeam > 0 => к краю росло, значит и в continuation сначала растет.
+		// slopeToSeam < 0 => к краю падало, значит и в continuation сначала падает.
+		float slopeToSeam = r0 - r1;
+		float slopePrev = r1 - r2;
+		float blendedSlope = Mathf.Lerp(slopeToSeam, slopePrev, 0.35f);
+		if (Mathf.Sign(slopeToSeam) != Mathf.Sign(slopePrev))
+			blendedSlope *= 0.5f;
+
+		float maxSlopePerRow = Mathf.Max(0.25f, sourceRange * 0.0075f);
+		blendedSlope = Mathf.Clamp(blendedSlope, -maxSlopePerRow, maxSlopePerRow);
+
+		float rowSpan = Mathf.Max(1f, rows - 1f);
+		float t = Mathf.Clamp(dist / rowSpan, 0f, 1f);
+		float slopeDecay = Mathf.Pow(1f - t, 1.8f);
+
+		return r0 + blendedSlope * dist * slopeDecay;
+	}
+
+
+	private static void StartDebugLogIfNeeded(bool debugLogging, Node3D root, string directionText, List<FrontierCandidate> candidates)
+	{
+		if (!debugLogging)
+			return;
+
+		try
+		{
+			string relDir = "user://terra_continuation_logs";
+			string absDir = ProjectSettings.GlobalizePath(relDir);
+			Directory.CreateDirectory(absDir);
+
+			string fileName = $"continuation_{DateTime.Now:yyyyMMdd_HHmmss_fff}.log";
+			_activeDebugLogPath = Path.Combine(absDir, fileName);
+			string sceneName = root?.Name.ToString() ?? "<null>";
+			var sb = new StringBuilder();
+			sb.AppendLine("=== Terrain Continuation Debug Log ===");
+			sb.AppendLine($"time={DateTime.Now:O}");
+			sb.AppendLine($"root={sceneName}");
+			sb.AppendLine($"direction={directionText}");
+			sb.AppendLine($"candidates={candidates.Count}");
+			File.WriteAllText(_activeDebugLogPath, sb.ToString(), Encoding.UTF8);
+			GD.Print($"📝 Continuation debug log: {_activeDebugLogPath}");
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Continuation debug log init failed: {ex.Message}");
+			_activeDebugLogPath = string.Empty;
+		}
+	}
+
+	private static void AppendDebugLog(bool debugLogging, string line)
+	{
+		if (!debugLogging || string.IsNullOrEmpty(_activeDebugLogPath))
+			return;
+
+		try
+		{
+			File.AppendAllText(_activeDebugLogPath, line + System.Environment.NewLine, Encoding.UTF8);
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Continuation debug log append failed: {ex.Message}");
+		}
+	}
+
+	private static string DescribeOffsetStats(string label, float[] offsets)
+	{
+		if (offsets == null || offsets.Length == 0)
+			return $"offsets[{label}] empty";
+
+		float min = float.MaxValue;
+		float max = float.MinValue;
+		float sum = 0f;
+		float sumAbs = 0f;
+		float[] copy = new float[offsets.Length];
+		for (int i = 0; i < offsets.Length; i++)
+		{
+			float v = offsets[i];
+			copy[i] = v;
+			if (v < min) min = v;
+			if (v > max) max = v;
+			sum += v;
+			sumAbs += Mathf.Abs(v);
+		}
+		Array.Sort(copy);
+		float p50 = copy[copy.Length / 2];
+		float p90 = copy[Mathf.Clamp(Mathf.FloorToInt((copy.Length - 1) * 0.90f), 0, copy.Length - 1)];
+		float p95 = copy[Mathf.Clamp(Mathf.FloorToInt((copy.Length - 1) * 0.95f), 0, copy.Length - 1)];
+		return $"offsets[{label}] min={min:F3} max={max:F3} mean={sum / offsets.Length:F3} absMean={sumAbs / offsets.Length:F3} p50={p50:F3} p90={p90:F3} p95={p95:F3}";
+	}
+
+	private static string DescribeTopOffsetSamples(string label, float[] offsets, int topN)
+	{
+		if (offsets == null || offsets.Length == 0)
+			return $"offsetsTop[{label}] empty";
+
+		topN = Mathf.Clamp(topN, 1, offsets.Length);
+		int[] idx = new int[offsets.Length];
+		for (int i = 0; i < offsets.Length; i++) idx[i] = i;
+
+		Array.Sort(idx, (a, b) => Mathf.Abs(offsets[b]).CompareTo(Mathf.Abs(offsets[a])));
+		var sb = new StringBuilder();
+		sb.Append($"offsetsTop[{label}] ");
+		for (int i = 0; i < topN; i++)
+		{
+			int k = idx[i];
+			sb.Append($"#{i + 1}[axis={k},v={offsets[k]:F3}] ");
+		}
+		return sb.ToString().TrimEnd();
 	}
 
 	public static Vector3 ComputeContinuationPosition(ContinueContext ctx, int newLength, int newWidth, float yOffset)
