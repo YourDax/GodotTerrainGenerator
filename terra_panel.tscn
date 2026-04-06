@@ -207,6 +207,7 @@ theme_override_constants/separation = 8
 custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
 size_flags_horizontal = 0
+max_value = 1000.0
 value = 50.0
 
 [node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Max Y"]
