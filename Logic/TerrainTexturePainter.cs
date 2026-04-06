@@ -96,7 +96,7 @@ public static class TerrainTexturePainter
 			// Добавляем пути по умолчанию (в приоритетном порядке)
 			// Основной путь по умолчанию - res://addons/terragenerating/Texture/road.jpg
 			possibleRoadPaths.Add(TerraConfig.DefaultRoadTexturePath);
-			possibleRoadPaths.Add("res://addons/terragenerating/Texture/road.png");
+			possibleRoadPaths.Add($"{TerraConfig.AddonRootPath}/Texture/road.png");
 			possibleRoadPaths.Add("res://Texture/road.jpg");
 			possibleRoadPaths.Add("res://Texture/road.png");
 			possibleRoadPaths.Add("res://textures/road.jpg");

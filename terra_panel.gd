@@ -141,6 +141,7 @@ func _ready():
 	# Настраиваем селектор режима текстур
 	_setup_texture_mode()
 	_setup_random_texture_controls()
+	_normalize_texture_paths_for_current_addon()
 	
 	# Настраиваем ползунок плавности перехода на склонах
 	_setup_slope_blend_slider()
@@ -763,6 +764,36 @@ func _on_road_texture_file_selected(path: String):
 	if road_texture_path_edit:
 		road_texture_path_edit.text = path
 		print("Путь к текстуре дороги: ", path)
+
+func _addon_root_path() -> String:
+	var script_res := get_script() as Script
+	if script_res == null:
+		return "res://addons/terragenerating"
+	return script_res.resource_path.get_base_dir()
+
+func _normalize_legacy_addon_path(path: String) -> String:
+	if path == "":
+		return path
+	const LEGACY_PREFIX := "res://addons/terragenerating"
+	if path.begins_with(LEGACY_PREFIX):
+		return _addon_root_path() + path.substr(LEGACY_PREFIX.length())
+	return path
+
+func _normalize_texture_paths_for_current_addon() -> void:
+	if road_texture_path_edit:
+		road_texture_path_edit.text = _normalize_legacy_addon_path(road_texture_path_edit.text)
+	if random_sand_path_edit:
+		random_sand_path_edit.text = _normalize_legacy_addon_path(random_sand_path_edit.text)
+	if random_grass_path_edit:
+		random_grass_path_edit.text = _normalize_legacy_addon_path(random_grass_path_edit.text)
+	if random_rock_path_edit:
+		random_rock_path_edit.text = _normalize_legacy_addon_path(random_rock_path_edit.text)
+	if realmap_sand_path_edit:
+		realmap_sand_path_edit.text = _normalize_legacy_addon_path(realmap_sand_path_edit.text)
+	if realmap_grass_path_edit:
+		realmap_grass_path_edit.text = _normalize_legacy_addon_path(realmap_grass_path_edit.text)
+	if realmap_rock_path_edit:
+		realmap_rock_path_edit.text = _normalize_legacy_addon_path(realmap_rock_path_edit.text)
 
 func _setup_scatter_objects() -> void:
 	if scatter_inner == null:

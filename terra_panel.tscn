@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3 uid="uid://b8b4r624p1cj8"]
 
-[ext_resource type="Script" uid="uid://beoun4ig67evt" path="res://addons/terragenerating/terra_panel.gd" id="1_ker3i"]
+[ext_resource type="Script" uid="uid://beoun4ig67evt" path="terra_panel.gd" id="1_ker3i"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ker3i"]
 content_margin_left = 10.0

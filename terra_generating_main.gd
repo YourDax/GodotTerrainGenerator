@@ -6,9 +6,9 @@ var progress_dialog = null
 var export_progress_dialog = null
 var _active_terrain_instance: Node = null
 var _export_cancel_requested: bool = false
-const TERRA_PANEL = preload("res://addons/terragenerating/terra_panel.tscn")
-const TERRAIN_SCENE = preload("res://addons/terragenerating/Logic/TerrainGenerator.tscn")
-const PROGRESS_DIALOG = preload("res://addons/terragenerating/progress_dialog.tscn")
+const TERRA_PANEL = preload("terra_panel.tscn")
+const TERRAIN_SCENE = preload("Logic/TerrainGenerator.tscn")
+const PROGRESS_DIALOG = preload("progress_dialog.tscn")
 
 
 func _enter_tree():

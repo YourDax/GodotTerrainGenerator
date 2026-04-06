@@ -324,8 +324,8 @@ public static class RealMapTerrainGenerator
 
 		// Дефолтные сцены деревьев
 		var treeScenes = new List<PackedScene>();
-		const string tree1Path = "res://addons/terragenerating/Texture/source/tree.tscn";
-		const string tree2Path = "res://addons/terragenerating/Texture/source/tree2.tscn";
+		string tree1Path = $"{TerraConfig.AddonRootPath}/Texture/source/tree.tscn";
+		string tree2Path = $"{TerraConfig.AddonRootPath}/Texture/source/tree2.tscn";
 		if (ResourceLoader.Exists(tree1Path)) treeScenes.Add(ResourceLoader.Load<PackedScene>(tree1Path));
 		if (ResourceLoader.Exists(tree2Path)) treeScenes.Add(ResourceLoader.Load<PackedScene>(tree2Path));
 

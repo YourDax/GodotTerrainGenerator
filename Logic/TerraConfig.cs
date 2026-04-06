@@ -2,10 +2,14 @@ using Godot;
 
 public static class TerraConfig
 {
-	public const string SandTexturePath = "res://addons/terragenerating/Texture/sand.png";
-	public const string GrassTexturePath = "res://addons/terragenerating/Texture/grass.png";
-	public const string RockTexturePath = "res://addons/terragenerating/Texture/rock.png";
-	public const string DefaultRoadTexturePath = "res://addons/terragenerating/Texture/road.jpg";
+	private const string LegacyAddonRoot = "res://addons/terragenerating";
+	private static string _addonRootCache;
+
+	public static string AddonRootPath => ResolveAddonRootPath();
+	public static string SandTexturePath => $"{AddonRootPath}/Texture/sand.png";
+	public static string GrassTexturePath => $"{AddonRootPath}/Texture/grass.png";
+	public static string RockTexturePath => $"{AddonRootPath}/Texture/rock.png";
+	public static string DefaultRoadTexturePath => $"{AddonRootPath}/Texture/road.jpg";
 
 	public const int OpenTopoMaxPointsPerRequest = 100;
 	public const int OpenTopoMaxRetries = 5;
@@ -41,5 +45,44 @@ public static class TerraConfig
 	{
 		float roadWidth = Mathf.Max(length, width) * DefaultRoadWidthPercent;
 		return Mathf.Clamp(roadWidth, MinRoadWidthWorld, MaxRoadWidthWorld);
+	}
+
+	private static string ResolveAddonRootPath()
+	{
+		if (!string.IsNullOrEmpty(_addonRootCache))
+			return _addonRootCache;
+
+		// Предпочитаем фактическую папку, где лежит terra_generating_main.gd.
+		if (DirAccess.DirExistsAbsolute("res://addons"))
+		{
+			var dir = DirAccess.Open("res://addons");
+			if (dir != null)
+			{
+				dir.ListDirBegin();
+				while (true)
+				{
+					string name = dir.GetNext();
+					if (string.IsNullOrEmpty(name))
+						break;
+					if (name == "." || name == "..")
+						continue;
+					if (!dir.CurrentIsDir())
+						continue;
+
+					string candidateRoot = $"res://addons/{name}";
+					string pluginMain = $"{candidateRoot}/terra_generating_main.gd";
+					if (ResourceLoader.Exists(pluginMain))
+					{
+						_addonRootCache = candidateRoot;
+						dir.ListDirEnd();
+						return _addonRootCache;
+					}
+				}
+				dir.ListDirEnd();
+			}
+		}
+
+		_addonRootCache = LegacyAddonRoot;
+		return _addonRootCache;
 	}
 }
