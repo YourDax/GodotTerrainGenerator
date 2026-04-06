@@ -1,9 +1,9 @@
 [gd_scene load_steps=9 format=4 uid="uid://cc5uki06ubfxi"]
 
-[ext_resource type="Texture2D" uid="uid://dv57h1qoqxt3u" path="res://addons/terragenerating/Texture/source/Coniferous Forest Assets Pack_UltraQualityFirOptimized2_bark07_color.png" id="1_foes6"]
-[ext_resource type="Texture2D" uid="uid://cgvfhxwp6dnni" path="res://addons/terragenerating/Texture/source/Coniferous Forest Assets Pack_UltraQualityFirOptimized_bark07_normal.png" id="2_ffj3t"]
-[ext_resource type="Texture2D" uid="uid://dken3vffqgavw" path="res://addons/terragenerating/Texture/source/Coniferous Forest Assets Pack_Branch_COLOR0000.png" id="3_bya3n"]
-[ext_resource type="Texture2D" uid="uid://cd3h55453kg70" path="res://addons/terragenerating/Texture/source/Coniferous Forest Assets Pack_Branch_NORMAL0000.png" id="4_6mdws"]
+[ext_resource type="Texture2D" uid="uid://dv57h1qoqxt3u" path="Coniferous Forest Assets Pack_UltraQualityFirOptimized2_bark07_color.png" id="1_foes6"]
+[ext_resource type="Texture2D" uid="uid://cgvfhxwp6dnni" path="Coniferous Forest Assets Pack_UltraQualityFirOptimized_bark07_normal.png" id="2_ffj3t"]
+[ext_resource type="Texture2D" uid="uid://dken3vffqgavw" path="Coniferous Forest Assets Pack_Branch_COLOR0000.png" id="3_bya3n"]
+[ext_resource type="Texture2D" uid="uid://cd3h55453kg70" path="Coniferous Forest Assets Pack_Branch_NORMAL0000.png" id="4_6mdws"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ip3nf"]
 resource_name = "BarkMat"

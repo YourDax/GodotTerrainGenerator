@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dmgnqtsq66ejs"]
 
-[ext_resource type="Script" uid="uid://dr351fokyj3jr" path="res://addons/terragenerating/Logic/TerrainGenerator.cs" id="1_xp8w7"]
+[ext_resource type="Script" uid="uid://dr351fokyj3jr" path="TerrainGenerator.cs" id="1_xp8w7"]
 
 [node name="TerrainGenerator" type="Node3D"]
 script = ExtResource("1_xp8w7")

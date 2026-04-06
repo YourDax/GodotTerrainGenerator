@@ -13,17 +13,21 @@ public static class RealWorldTexturePainter
 		int meshResX,
 		int meshResZ,
 		// Путь к текстуре песка
-		string sandPath = "res://addons/terragenerating/Texture/sand.png",
+		string sandPath = null,
 		// Путь к текстуре травы
-		string grassPath = "res://addons/terragenerating/Texture/grass.png",
+		string grassPath = null,
 		// Путь к текстуре камня
-		string rockPath = "res://addons/terragenerating/Texture/rock.png",
+		string rockPath = null,
 		// Граница песок-трава (нормализованная высота 0-1)
 		float sandGrass = 0.35f,
 		// Граница трава-камень (нормализованная высота 0-1)
 		float grassRock = 0.65f
 	)
 	{
+		sandPath = string.IsNullOrWhiteSpace(sandPath) ? TerraConfig.SandTexturePath : sandPath;
+		grassPath = string.IsNullOrWhiteSpace(grassPath) ? TerraConfig.GrassTexturePath : grassPath;
+		rockPath = string.IsNullOrWhiteSpace(rockPath) ? TerraConfig.RockTexturePath : rockPath;
+
 		// Проверка путей к текстурам
 		if (string.IsNullOrEmpty(sandPath) || string.IsNullOrEmpty(grassPath) || string.IsNullOrEmpty(rockPath))
 		{

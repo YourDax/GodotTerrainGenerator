@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=4 uid="uid://c5ufapj517j7w"]
 
-[ext_resource type="Texture2D" uid="uid://cxgexgquy6a1a" path="res://addons/terragenerating/Texture/source/Coniferous Forest Assets Pack_Boulder_COLOR.png" id="1_jiy3m"]
-[ext_resource type="Texture2D" uid="uid://boenicr4q708k" path="res://addons/terragenerating/Texture/source/Coniferous Forest Assets Pack_Boulder_NORMAL.png" id="2_bibsa"]
+[ext_resource type="Texture2D" uid="uid://cxgexgquy6a1a" path="Coniferous Forest Assets Pack_Boulder_COLOR.png" id="1_jiy3m"]
+[ext_resource type="Texture2D" uid="uid://boenicr4q708k" path="Coniferous Forest Assets Pack_Boulder_NORMAL.png" id="2_bibsa"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0sra2"]
 resource_name = "BoulderMossy"
