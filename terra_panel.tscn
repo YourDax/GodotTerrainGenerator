@@ -1,367 +1,565 @@
-[gd_scene load_steps=3 format=3 uid="uid://b8b4r624p1cj8"]
+[gd_scene load_steps=6 format=3 uid="uid://b8b4r624p1cj8"]
 
 [ext_resource type="Script" uid="uid://beoun4ig67evt" path="res://addons/terragenerating/terra_panel.gd" id="1_ker3i"]
 
-[sub_resource type="GDScript" id="GDScript_8n5ej"]
-script/source = "extends Button
-"
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ker3i"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.11, 0.14, 0.18, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.24, 0.3, 0.38, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_8n5ej"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.11, 0.14, 0.18, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.24, 0.3, 0.38, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dykba"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.11, 0.14, 0.18, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.24, 0.3, 0.38, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_llgk3"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.11, 0.14, 0.18, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.24, 0.3, 0.38, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
 
 [node name="TerraPanel" type="VBoxContainer"]
+offset_right = 549.0
+offset_bottom = 2000.0
+scale = Vector2(1, 0.9966938)
+theme_override_constants/separation = 10
 script = ExtResource("1_ker3i")
 
-[node name="Label" type="Label" parent="."]
+[node name="MainScroll" type="ScrollContainer" parent="."]
+custom_minimum_size = Vector2(340, 420)
 layout_mode = 2
-text = "🌍 Terra Generating"
-horizontal_alignment = 1
+size_flags_horizontal = 3
+size_flags_vertical = 3
+follow_focus = true
+horizontal_scroll_mode = 0
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="MainContent" type="VBoxContainer" parent="MainScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="MainScroll/MainContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.97, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.35)
+theme_override_font_sizes/font_size = 22
+text = "Terra Generating"
+
+[node name="SectionMode" type="PanelContainer" parent="MainScroll/MainContent"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_ker3i")
+
+[node name="Body" type="VBoxContainer" parent="MainScroll/MainContent/SectionMode"]
 layout_mode = 2
 
-[node name="HBoxContainer X" type="HBoxContainer" parent="VBoxContainer"]
+[node name="ModeTitle" type="Label" parent="MainScroll/MainContent/SectionMode/Body"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.89, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Режим"
+
+[node name="RealMapCheck" type="CheckBox" parent="MainScroll/MainContent/SectionMode/Body"]
+layout_mode = 2
+text = "🗺️ Режим реальной карты"
+
+[node name="GenerateButton" type="Button" parent="MainScroll/MainContent"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.05, 0.07, 0.1, 1)
+theme_override_font_sizes/font_size = 15
+text = "✨ Создать ландшафт"
+
+[node name="SectionMesh" type="PanelContainer" parent="MainScroll/MainContent"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_8n5ej")
+
+[node name="Body" type="VBoxContainer" parent="MainScroll/MainContent/SectionMesh"]
 layout_mode = 2
 
-[node name="Xbox" type="SpinBox" parent="VBoxContainer/HBoxContainer X"]
+[node name="MeshTitle" type="Label" parent="MainScroll/MainContent/SectionMesh/Body"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.89, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Мэш"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body"]
+layout_mode = 2
+
+[node name="HBoxContainer X" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Xbox" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer X"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 2
 min_value = 10.0
 max_value = 1000.0
 value = 50.0
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer X"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer X"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "X - длинна"
 
-[node name="HBoxContainer Z" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer Z" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="Zbox" type="SpinBox" parent="VBoxContainer/HBoxContainer Z"]
+[node name="Zbox" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Z"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 2
 min_value = 10.0
 max_value = 1000.0
 value = 50.0
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Z"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Z"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Z - ширина"
 
-[node name="HBoxContainer Min Y" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer Min Y" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="MinYbox" type="SpinBox" parent="VBoxContainer/HBoxContainer Min Y"]
+[node name="MinYbox" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Min Y"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Min Y"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Min Y"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Y - мин. высота"
 
-[node name="HBoxContainer Max Y" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer Max Y" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="MaxYbox" type="SpinBox" parent="VBoxContainer/HBoxContainer Max Y"]
+[node name="MaxYbox" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Max Y"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
 value = 50.0
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Max Y"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Max Y"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Y - макс. высота"
 
-[node name="HBoxContainer SandGrass" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer SandGrass" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="SandGrass" type="SpinBox" parent="VBoxContainer/HBoxContainer SandGrass"]
+[node name="SandGrass" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer SandGrass"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 1.0
 step = 0.01
 value = 0.35
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer SandGrass"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer SandGrass"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Граница песок-трава"
 
-[node name="HBoxContainer GrassRock" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer GrassRock" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="GrassRock" type="SpinBox" parent="VBoxContainer/HBoxContainer GrassRock"]
+[node name="GrassRock" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer GrassRock"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
 max_value = 1.0
 step = 0.01
 value = 0.65
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer GrassRock"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer GrassRock"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Граница трава-камень"
 
-[node name="HBoxContainer WaterLevel" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer WaterLevel" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="WaterLevel" type="SpinBox" parent="VBoxContainer/HBoxContainer WaterLevel"]
+[node name="WaterLevel" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer WaterLevel"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 2
 max_value = 1.0
 step = 0.01
 value = 0.35
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer WaterLevel"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer WaterLevel"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Высота воды"
 
-[node name="HBoxContainerIsland" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainerIsland" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="IslandCheck" type="CheckBox" parent="VBoxContainer/HBoxContainerIsland"]
+[node name="IslandCheck" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainerIsland"]
+custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
-text = "Генерация острова"
+size_flags_horizontal = 0
 tooltip_text = "Края меша под уровнем воды: плавные «пляжи» или резкие обрывы задаются случайно при каждой генерации."
+text = "Генерация острова"
 
-[node name="HBoxContainer Resolution" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer Resolution" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="Resolution" type="SpinBox" parent="VBoxContainer/HBoxContainer Resolution"]
+[node name="Resolution" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Resolution"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 2
 min_value = 16.0
 max_value = 128.0
 value = 64.0
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Resolution"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Resolution"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Resolution"
 
-[node name="HBoxContainer Smoothing" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer Smoothing" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="SmoothingSlider" type="HSlider" parent="VBoxContainer/HBoxContainer Smoothing"]
+[node name="SmoothingSlider" type="HSlider" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Smoothing"]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
 step = 0.01
 value = 1.0
 
-[node name="SmoothingValue" type="Label" parent="VBoxContainer/HBoxContainer Smoothing"]
+[node name="SmoothingValue" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Smoothing"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
 size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "1.00"
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer Smoothing"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Smoothing"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Сглаживание"
 
-[node name="HBoxContainer TextureMode" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer TextureMode" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer TextureMode"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer TextureMode"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Режим текстур:"
 
-[node name="TextureModeSelector" type="OptionButton" parent="VBoxContainer/HBoxContainer TextureMode"]
+[node name="TextureModeSelector" type="OptionButton" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer TextureMode"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+selected = 0
+item_count = 2
+popup/item_0/text = "По высоте (песок → трава → камень)"
+popup/item_0/id = 0
+popup/item_1/text = "Камень на склонах (только на горах)"
+popup/item_1/id = 1
+
+[node name="HBoxContainer SlopeBlend" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SlopeBlendSlider" type="HSlider" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer SlopeBlend"]
 layout_mode = 2
 size_flags_horizontal = 3
-
-[node name="HBoxContainer SlopeBlend" type="HBoxContainer" parent="VBoxContainer"]
-layout_mode = 2
-visible = false
-
-[node name="SlopeBlendSlider" type="HSlider" parent="VBoxContainer/HBoxContainer SlopeBlend"]
-layout_mode = 2
-min_value = 0.0
 max_value = 1.0
 step = 0.01
 value = 0.5
-size_flags_horizontal = 3
 
-[node name="SlopeBlendValue" type="Label" parent="VBoxContainer/HBoxContainer SlopeBlend"]
+[node name="SlopeBlendValue" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer SlopeBlend"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
-text = "0.50"
 size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
+text = "0.50"
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer SlopeBlend"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer SlopeBlend"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Плавность перехода (склоны)"
 
-[node name="HBoxContainer PngImg" type="HBoxContainer" parent="VBoxContainer"]
+[node name="HBoxContainer PngImg" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="FileDialog" type="FileDialog" parent="VBoxContainer/HBoxContainer PngImg"]
+[node name="FileDialog" type="FileDialog" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer PngImg"]
 oversampling_override = 1.0
 display_mode = 1
 access = 2
 filters = PackedStringArray("*.png ; PNG Images")
 
-[node name="Label" type="Label" parent="VBoxContainer/HBoxContainer PngImg"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer PngImg"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Путь сохранения текстуры"
 
-[node name="TextureSave" type="Button" parent="VBoxContainer/HBoxContainer PngImg"]
+[node name="TextureSave" type="Button" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer PngImg"]
+custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
+size_flags_horizontal = 0
 text = "Выбрать"
-script = SubResource("GDScript_8n5ej")
 
-[node name="VBoxContainerRealMap" type="VBoxContainer" parent="."]
+[node name="RandomTexturesSection" type="VBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
+layout_mode = 2
+
+[node name="RandomTexturesLabel" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection"]
+layout_mode = 2
+text = "🎨 Текстуры random-режима (минимум одна):"
+
+[node name="RandomTexturesChecks" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TexSand" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/RandomTexturesChecks"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+button_pressed = true
+text = "Песок"
+
+[node name="TexGrass" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/RandomTexturesChecks"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+button_pressed = true
+text = "Трава"
+
+[node name="TexRock" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/RandomTexturesChecks"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+button_pressed = true
+text = "Камень"
+
+[node name="RandomCustomPathsCheck" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection"]
+layout_mode = 2
+text = "Использовать кастомные пути текстур"
+
+[node name="SandRow" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/SandRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
+text = "Песок текстура"
+
+[node name="SandPath" type="LineEdit" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/SandRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "res://addons/terragenerating/Texture/sand.png"
+
+[node name="SandBrowse" type="Button" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/SandRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Обзор..."
+
+[node name="GrassRow" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/GrassRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
+text = "Трава текстура"
+
+[node name="GrassPath" type="LineEdit" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/GrassRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "res://addons/terragenerating/Texture/grass.png"
+
+[node name="GrassBrowse" type="Button" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/GrassRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Обзор..."
+
+[node name="RockRow" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/RockRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
+text = "Камень текстура"
+
+[node name="RockPath" type="LineEdit" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/RockRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "res://addons/terragenerating/Texture/rock.png"
+
+[node name="RockBrowse" type="Button" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/RandomTexturesSection/RockRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Обзор..."
+
+[node name="ContinueGenerationRow" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ContinueGenerationCheck" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/ContinueGenerationRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "Работает только если выбран узел TerrainGenerator с уже созданным мэшем."
+text = "Продолжить генерацию мэша"
+
+[node name="ContinueDirection" type="OptionButton" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/ContinueGenerationRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+disabled = true
+selected = 0
+item_count = 4
+popup/item_0/text = "x+"
+popup/item_0/id = 0
+popup/item_1/text = "x-"
+popup/item_1/id = 1
+popup/item_2/text = "z+"
+popup/item_2/id = 2
+popup/item_3/text = "z-"
+popup/item_3/id = 3
+
+[node name="VBoxContainerRealMap" type="VBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body"]
 visible = false
 layout_mode = 2
 
-[node name="LabelPresets" type="Label" parent="VBoxContainerRealMap"]
+[node name="LabelPresets" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
 text = "📍 Быстрый выбор места:"
 
-[node name="LocationPresets" type="OptionButton" parent="VBoxContainerRealMap"]
+[node name="LocationPresets" type="OptionButton" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
 selected = 0
-item_count = 74
+item_count = 15
 popup/item_0/text = "Выберите место..."
 popup/item_0/id = 0
-popup/item_1/text = "🏔️ Эверест (Гималаи)"
+popup/item_1/text = "🏙️ Москва"
 popup/item_1/id = 1
-popup/item_2/text = "🏔️ Маттерхорн (Альпы)"
+popup/item_2/text = "🏙️ Санкт-Петербург"
 popup/item_2/id = 2
-popup/item_3/text = "🏔️ Килиманджаро (Танзания)"
+popup/item_3/text = "🏙️ Екатеринбург"
 popup/item_3/id = 3
-popup/item_4/text = "🏔️ Денали (Аляска)"
+popup/item_4/text = "🏙️ Новосибирск"
 popup/item_4/id = 4
-popup/item_5/text = "🏔️ Монблан (Альпы)"
+popup/item_5/text = "🏙️ Казань"
 popup/item_5/id = 5
-popup/item_6/text = "🏔️ Фудзияма (Япония)"
+popup/item_6/text = "🏙️ Нижний Новгород"
 popup/item_6/id = 6
-popup/item_7/text = "🏜️ Гранд-Каньон (США)"
+popup/item_7/text = "🏙️ Самара"
 popup/item_7/id = 7
-popup/item_8/text = "🏜️ Долина Смерти (США)"
+popup/item_8/text = "🏙️ Тольятти"
 popup/item_8/id = 8
-popup/item_9/text = "🌋 Везувий (Италия)"
+popup/item_9/text = "🏙️ Ульяновск"
 popup/item_9/id = 9
-popup/item_10/text = "🌋 Этна (Сицилия)"
+popup/item_10/text = "🏙️ Сочи"
 popup/item_10/id = 10
-popup/item_11/text = "🏙️ Москва (центр)"
+popup/item_11/text = "🏔️ Эльбрус (район)"
 popup/item_11/id = 11
-popup/item_12/text = "🏙️ Санкт-Петербург"
+popup/item_12/text = "🏔️ Домбай (район)"
 popup/item_12/id = 12
-popup/item_13/text = "🏙️ Нью-Йорк (Манхэттен)"
+popup/item_13/text = "🏔️ Байкал (Листвянка, район)"
 popup/item_13/id = 13
-popup/item_14/text = "🏙️ Париж (центр)"
+popup/item_14/text = "🏔️ Урал (гора Народная, район)"
 popup/item_14/id = 14
-popup/item_15/text = "🏙️ Лондон (центр)"
-popup/item_15/id = 15
-popup/item_16/text = "🏙️ Токио (центр)"
-popup/item_16/id = 16
-popup/item_17/text = "🏝️ Гавайи (Мауна-Кеа)"
-popup/item_17/id = 17
-popup/item_18/text = "🏔️ Альпы (Швейцария)"
-popup/item_18/id = 18
-popup/item_19/text = "🏔️ Кавказ (Эльбрус)"
-popup/item_19/id = 19
-popup/item_20/text = "🏔️ Урал (гора Народная)"
-popup/item_20/id = 20
-popup/item_21/text = "🏜️ Сахара (пустыня)"
-popup/item_21/id = 21
-popup/item_22/text = "🌊 Мальдивы"
-popup/item_22/id = 22
-popup/item_23/text = "🏔️ Анды (Мачу-Пикчу)"
-popup/item_23/id = 23
-popup/item_24/text = "🏔️ Аконкагуа (Анды)"
-popup/item_24/id = 24
-popup/item_25/text = "🏔️ Монте-Роза (Альпы)"
-popup/item_25/id = 25
-popup/item_26/text = "🏔️ Казбек (Кавказ)"
-popup/item_26/id = 26
-popup/item_27/text = "🏔️ Арарат (Турция)"
-popup/item_27/id = 27
-popup/item_28/text = "🌋 Кракатау (Индонезия)"
-popup/item_28/id = 28
-popup/item_29/text = "🌋 Сент-Хеленс (США)"
-popup/item_29/id = 29
-popup/item_30/text = "🏜️ Гоби (Монголия)"
-popup/item_30/id = 30
-popup/item_31/text = "🏜️ Атакама (Чили)"
-popup/item_31/id = 31
-popup/item_32/text = "🏔️ Гималаи (Эверест, расширенная область)"
-popup/item_32/id = 32
-popup/item_33/text = "🏔️ Альпы (расширенная область)"
-popup/item_33/id = 33
-popup/item_34/text = "🏙️ Сидней (Австралия)"
-popup/item_34/id = 34
-popup/item_35/text = "🏙️ Сан-Франциско (США)"
-popup/item_35/id = 35
-popup/item_36/text = "🏙️ Лос-Анджелес (США)"
-popup/item_36/id = 36
-popup/item_37/text = "🏙️ Чикаго (США)"
-popup/item_37/id = 37
-popup/item_38/text = "🏙️ Сиэтл (США)"
-popup/item_38/id = 38
-popup/item_39/text = "🏙️ Ванкувер (Канада)"
-popup/item_39/id = 39
-popup/item_40/text = "🏙️ Торонто (Канада)"
-popup/item_40/id = 40
-popup/item_41/text = "🏙️ Берлин (Германия)"
-popup/item_41/id = 41
-popup/item_42/text = "🏙️ Рим (Италия)"
-popup/item_42/id = 42
-popup/item_43/text = "🏙️ Мадрид (Испания)"
-popup/item_43/id = 43
-popup/item_44/text = "🏙️ Амстердам (Нидерланды)"
-popup/item_44/id = 44
-popup/item_45/text = "🏙️ Стокгольм (Швеция)"
-popup/item_45/id = 45
-popup/item_46/text = "🏙️ Осло (Норвегия)"
-popup/item_46/id = 46
-popup/item_47/text = "🏙️ Копенгаген (Дания)"
-popup/item_47/id = 47
-popup/item_48/text = "🏙️ Вена (Австрия)"
-popup/item_48/id = 48
-popup/item_49/text = "🏙️ Прага (Чехия)"
-popup/item_49/id = 49
-popup/item_50/text = "🏙️ Варшава (Польша)"
-popup/item_50/id = 50
-popup/item_51/text = "🏙️ Будапешт (Венгрия)"
-popup/item_51/id = 51
-popup/item_52/text = "🏙️ Афины (Греция)"
-popup/item_52/id = 52
-popup/item_53/text = "🏙️ Стамбул (Турция)"
-popup/item_53/id = 53
-popup/item_54/text = "🏙️ Каир (Египет)"
-popup/item_54/id = 54
-popup/item_55/text = "🏙️ Тель-Авив (Израиль)"
-popup/item_55/id = 55
-popup/item_56/text = "🏙️ Дели (Индия)"
-popup/item_56/id = 56
-popup/item_57/text = "🏙️ Мумбаи (Индия)"
-popup/item_57/id = 57
-popup/item_58/text = "🏙️ Бангкок (Таиланд)"
-popup/item_58/id = 58
-popup/item_59/text = "🏙️ Сеул (Южная Корея)"
-popup/item_59/id = 59
-popup/item_60/text = "🏙️ Пекин (Китай)"
-popup/item_60/id = 60
-popup/item_61/text = "🏙️ Шанхай (Китай)"
-popup/item_61/id = 61
-popup/item_62/text = "🏙️ Джакарта (Индонезия)"
-popup/item_62/id = 62
-popup/item_63/text = "🏙️ Манила (Филиппины)"
-popup/item_63/id = 63
-popup/item_64/text = "🏙️ Мельбурн (Австралия)"
-popup/item_64/id = 64
-popup/item_65/text = "🏙️ Окленд (Новая Зеландия)"
-popup/item_65/id = 65
-popup/item_66/text = "🏙️ Сан-Паулу (Бразилия)"
-popup/item_66/id = 66
-popup/item_67/text = "🏙️ Рио-де-Жанейро (Бразилия)"
-popup/item_67/id = 67
-popup/item_68/text = "🏙️ Буэнос-Айрес (Аргентина)"
-popup/item_68/id = 68
-popup/item_69/text = "🏙️ Мехико (Мексика)"
-popup/item_69/id = 69
-popup/item_70/text = "🏙️ Лима (Перу)"
-popup/item_70/id = 70
-popup/item_71/text = "🏙️ Богота (Колумбия)"
-popup/item_71/id = 71
-popup/item_72/text = "🏙️ Каракас (Венесуэла)"
-popup/item_72/id = 72
-popup/item_73/text = "🏙️ Сантьяго (Чили)"
-popup/item_73/id = 73
 
-[node name="HSeparatorResolution" type="HSeparator" parent="VBoxContainerRealMap"]
-layout_mode = 2
-
-[node name="LabelResolutionMode" type="Label" parent="VBoxContainerRealMap"]
+[node name="LabelResolutionMode" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
 text = "⚙️ Режим разрешения:"
 
-[node name="ResolutionMode" type="OptionButton" parent="VBoxContainerRealMap"]
+[node name="ResolutionMode" type="OptionButton" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
 selected = 0
 item_count = 3
@@ -372,140 +570,297 @@ popup/item_1/id = 1
 popup/item_2/text = "Адаптивное - Автоматический выбор"
 popup/item_2/id = 2
 
-[node name="HSeparatorCoords" type="HSeparator" parent="VBoxContainerRealMap"]
+[node name="HBoxContainerLeftUpLat" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="HBoxContainerLeftUpLat" type="HBoxContainer" parent="VBoxContainerRealMap"]
+[node name="LeftUpLat" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerLeftUpLat"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
-
-[node name="LeftUpLat" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerLeftUpLat"]
-layout_mode = 2
+size_flags_horizontal = 0
 min_value = -180.0
 max_value = 180.0
 step = 0.0001
-value = 46.02000000000001
 allow_greater = true
 allow_lesser = true
 custom_arrow_step = 0.0001
 
-[node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerLeftUpLat"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerLeftUpLat"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Северная широта (Lat)"
 
-[node name="HBoxContainerLeftUpLng" type="HBoxContainer" parent="VBoxContainerRealMap"]
+[node name="HBoxContainerLeftUpLng" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="LeftUpLng" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerLeftUpLng"]
+[node name="LeftUpLng" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerLeftUpLng"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
 min_value = -180.0
 max_value = 180.0
 step = 0.0001
-value = 46.02000000000001
 allow_greater = true
 allow_lesser = true
 custom_arrow_step = 0.0001
 
-[node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerLeftUpLng"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerLeftUpLng"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Западная долгота (Lng)"
 
-[node name="HBoxContainerRightDownLat" type="HBoxContainer" parent="VBoxContainerRealMap"]
+[node name="HBoxContainerRightDownLat" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="RightDownLat" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerRightDownLat"]
+[node name="RightDownLat" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerRightDownLat"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
 min_value = -180.0
 max_value = 180.0
 step = 0.0001
-value = 50.22
 allow_greater = true
 allow_lesser = true
 custom_arrow_step = 0.0001
 
-[node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerRightDownLat"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerRightDownLat"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Южная широта (Lat)"
 
-[node name="HBoxContainerRightDownLng" type="HBoxContainer" parent="VBoxContainerRealMap"]
+[node name="HBoxContainerRightDownLng" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="RightDownLng" type="SpinBox" parent="VBoxContainerRealMap/HBoxContainerRightDownLng"]
+[node name="RightDownLng" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerRightDownLng"]
+custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
+size_flags_horizontal = 0
 min_value = -180.0
 max_value = 180.0
 step = 0.0001
-value = 50.22
 allow_greater = true
 allow_lesser = true
 custom_arrow_step = 0.0001
 
-[node name="Label" type="Label" parent="VBoxContainerRealMap/HBoxContainerRightDownLng"]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerRightDownLng"]
+custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Восточная долгота (Lng)"
 
-[node name="HSeparator" type="HSeparator" parent="."]
+[node name="WaterLevelLabel" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
+layout_mode = 2
+text = "🌊 Уровень воды (real-map):"
+
+[node name="WaterLevelRealMap" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+value = 0.15
+
+[node name="TexturesLabel" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
+layout_mode = 2
+text = "🎨 Текстуры real-map (минимум одна):"
+
+[node name="TexturesBox" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TexSand" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/TexturesBox"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+button_pressed = true
+text = "Песок"
+
+[node name="TexGrass" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/TexturesBox"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+button_pressed = true
+text = "Трава"
+
+[node name="TexRock" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/TexturesBox"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+button_pressed = true
+text = "Камень"
+
+[node name="RealMapCustomPathsCheck" type="CheckBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
+layout_mode = 2
+text = "Использовать кастомные пути текстур"
+
+[node name="RealMapTexturePaths" type="VBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
 layout_mode = 2
 
-[node name="RealMapCheck" type="CheckBox" parent="."]
+[node name="SandRow" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths"]
+visible = false
 layout_mode = 2
-text = "🗺️ Режим реальной карты"
+theme_override_constants/separation = 8
 
-[node name="HSeparator2" type="HSeparator" parent="."]
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/SandRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
+text = "Песок текстура"
+
+[node name="SandPath" type="LineEdit" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/SandRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "res://addons/terragenerating/Texture/sand.png"
+
+[node name="SandBrowse" type="Button" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/SandRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Обзор..."
+
+[node name="GrassRow" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/GrassRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
+text = "Трава текстура"
+
+[node name="GrassPath" type="LineEdit" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/GrassRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "res://addons/terragenerating/Texture/grass.png"
+
+[node name="GrassBrowse" type="Button" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/GrassRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Обзор..."
+
+[node name="RockRow" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/RockRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
+text = "Камень текстура"
+
+[node name="RockPath" type="LineEdit" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/RockRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "res://addons/terragenerating/Texture/rock.png"
+
+[node name="RockBrowse" type="Button" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/RealMapTexturePaths/RockRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+text = "Обзор..."
+
+[node name="ObjectSpacingLabel" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
+layout_mode = 2
+text = "🌲 Дистанция между объектами (real-map):"
+
+[node name="ObjectSpacingRealMap" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap"]
+layout_mode = 2
+min_value = 0.2
+max_value = 3.0
+step = 0.05
+value = 0.7
+
+[node name="SectionTextures" type="PanelContainer" parent="MainScroll/MainContent"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_dykba")
+
+[node name="Body" type="VBoxContainer" parent="MainScroll/MainContent/SectionTextures"]
 layout_mode = 2
 
-[node name="HBoxContainerRoads" type="HBoxContainer" parent="."]
+[node name="TexturesTitle" type="Label" parent="MainScroll/MainContent/SectionTextures/Body"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.89, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Текстуры"
+
+[node name="HBoxContainerRoads" type="HBoxContainer" parent="MainScroll/MainContent/SectionTextures/Body"]
 layout_mode = 2
 
-[node name="RoadsCheck" type="CheckBox" parent="HBoxContainerRoads"]
+[node name="RoadsCheck" type="CheckBox" parent="MainScroll/MainContent/SectionTextures/Body/HBoxContainerRoads"]
 layout_mode = 2
 text = "🛣️ Генерировать дороги"
 
-[node name="HBoxContainerRoadTexture" type="HBoxContainer" parent="."]
+[node name="HBoxContainerRoadTexture" type="HBoxContainer" parent="MainScroll/MainContent/SectionTextures/Body"]
 layout_mode = 2
 
-[node name="RoadTexturePath" type="LineEdit" parent="HBoxContainerRoadTexture"]
+[node name="RoadTexturePath" type="LineEdit" parent="MainScroll/MainContent/SectionTextures/Body/HBoxContainerRoadTexture"]
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "Путь к текстуре дороги (опционально)"
 
-[node name="RoadTextureButton" type="Button" parent="HBoxContainerRoadTexture"]
+[node name="RoadTextureButton" type="Button" parent="MainScroll/MainContent/SectionTextures/Body/HBoxContainerRoadTexture"]
 layout_mode = 2
 text = "Обзор..."
 
-[node name="RoadTextureFileDialog" type="FileDialog" parent="HBoxContainerRoadTexture"]
+[node name="RoadTextureFileDialog" type="FileDialog" parent="MainScroll/MainContent/SectionTextures/Body/HBoxContainerRoadTexture"]
+title = "Open a File"
 file_mode = 0
-access = 0
-current_dir = "res://"
-current_path = "res://addons/terragenerating/Texture/road.png"
-filters = ["*.png ; PNG Images", "*.jpg ; JPEG Images", "*.jpeg ; JPEG Images"]
+filters = PackedStringArray("*.png ; PNG Images", "*.jpg ; JPEG Images", "*.jpeg ; JPEG Images")
 
-[node name="HSeparator3" type="HSeparator" parent="."]
+[node name="RandomTextureFileDialog" type="FileDialog" parent="MainScroll/MainContent/SectionTextures/Body"]
+title = "Open a File"
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.png ; PNG Images", "*.jpg ; JPEG Images", "*.jpeg ; JPEG Images", "*.webp ; WEBP Images")
+
+[node name="RealMapTextureFileDialog" type="FileDialog" parent="MainScroll/MainContent/SectionTextures/Body"]
+title = "Open a File"
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.png ; PNG Images", "*.jpg ; JPEG Images", "*.jpeg ; JPEG Images", "*.webp ; WEBP Images")
+
+[node name="SectionObjects" type="PanelContainer" parent="MainScroll/MainContent"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_llgk3")
+
+[node name="Body" type="VBoxContainer" parent="MainScroll/MainContent/SectionObjects"]
 layout_mode = 2
 
-[node name="ScatterSection" type="VBoxContainer" parent="."]
+[node name="ObjectsTitle" type="Label" parent="MainScroll/MainContent/SectionObjects/Body"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.89, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Объекты"
+
+[node name="ScatterSection" type="VBoxContainer" parent="MainScroll/MainContent/SectionObjects/Body"]
 layout_mode = 2
 
-[node name="ScatterTitle" type="Label" parent="ScatterSection"]
+[node name="ScatterTitle" type="Label" parent="MainScroll/MainContent/SectionObjects/Body/ScatterSection"]
 layout_mode = 2
 text = "Объекты на карте (только случайная генерация)"
 horizontal_alignment = 1
 
-[node name="ScatterScroll" type="ScrollContainer" parent="ScatterSection"]
+[node name="ScatterScroll" type="ScrollContainer" parent="MainScroll/MainContent/SectionObjects/Body/ScatterSection"]
+custom_minimum_size = Vector2(0, 200)
 layout_mode = 2
 size_flags_vertical = 3
-custom_minimum_size = Vector2(0, 280)
 
-[node name="ScatterInner" type="VBoxContainer" parent="ScatterSection/ScatterScroll"]
+[node name="ScatterInner" type="VBoxContainer" parent="MainScroll/MainContent/SectionObjects/Body/ScatterSection/ScatterScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="GenerateButton" type="Button" parent="."]
-layout_mode = 2
-text = "✨ Создать ландшафт"
-script = SubResource("GDScript_8n5ej")
-
-[connection signal="pressed" from="GenerateButton" to="." method="_on_generate_button_pressed"]
+[connection signal="pressed" from="MainScroll/MainContent/GenerateButton" to="." method="_on_generate_button_pressed"]

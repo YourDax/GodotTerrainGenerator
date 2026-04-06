@@ -28,6 +28,12 @@ public partial class TerrainGenerator : Node3D
 			GetFloat(config, "max_height", 25f),
 			GetFloat(config, "sand_grass", 0.35f),
 			GetFloat(config, "grass_rock", 0.65f),
+			GetBool(config, "random_use_sand", true),
+			GetBool(config, "random_use_grass", true),
+			GetBool(config, "random_use_rock", true),
+			GetString(config, "random_sand_texture_path", TerraConfig.SandTexturePath),
+			GetString(config, "random_grass_texture_path", TerraConfig.GrassTexturePath),
+			GetString(config, "random_rock_texture_path", TerraConfig.RockTexturePath),
 			GetInt(config, "resolution", 100),
 			GetFloat(config, "water_level", 0.35f),
 			GetString(config, "texture_save_path", string.Empty),
@@ -41,6 +47,9 @@ public partial class TerrainGenerator : Node3D
 			GetBool(config, "realmap_use_sand", true),
 			GetBool(config, "realmap_use_grass", true),
 			GetBool(config, "realmap_use_rock", true),
+			GetString(config, "realmap_sand_texture_path", string.Empty),
+			GetString(config, "realmap_grass_texture_path", string.Empty),
+			GetString(config, "realmap_rock_texture_path", string.Empty),
 			GetFloat(config, "realmap_object_spacing_multiplier", 0.70f),
 			GetFloat(config, "smoothing", 1.0f),
 			GetInt(config, "texture_mode", 0),
@@ -59,6 +68,12 @@ public partial class TerrainGenerator : Node3D
 		float minHeight, float maxHeight,
 		float sandGrass,
 		float grassRock,
+		bool randomUseSand,
+		bool randomUseGrass,
+		bool randomUseRock,
+		string randomSandTexturePath,
+		string randomGrassTexturePath,
+		string randomRockTexturePath,
 		int resolution,
 		float waterLevel,
 		string savePath,
@@ -69,6 +84,9 @@ public partial class TerrainGenerator : Node3D
 		bool realMapUseSand = true,
 		bool realMapUseGrass = true,
 		bool realMapUseRock = true,
+		string realMapSandTexturePath = "",
+		string realMapGrassTexturePath = "",
+		string realMapRockTexturePath = "",
 		float realMapObjectSpacingMultiplier = 0.70f,
 		float smoothing = 1.0f,
 		int textureMode = 0,
@@ -82,6 +100,7 @@ public partial class TerrainGenerator : Node3D
 	)
 	{
 		_cancelRequested = false;
+		EmitProgressSignal(2.0f, "Подготовка генерации...");
 		GD.Print("═══════════════════════════════════════");
 		GD.Print("C# Generate() вызван из GDScript!");
 		GD.Print($"Параметры: length={length}, width={width}, resolution={resolution}");
@@ -98,6 +117,9 @@ public partial class TerrainGenerator : Node3D
 				realMapUseSand,
 				realMapUseGrass,
 				realMapUseRock,
+				realMapSandTexturePath,
+				realMapGrassTexturePath,
+				realMapRockTexturePath,
 				realMapObjectSpacingMultiplier
 			);
 			return;
@@ -109,6 +131,12 @@ public partial class TerrainGenerator : Node3D
 				length, width,
 				minHeight, maxHeight,
 				sandGrass, grassRock,
+				randomUseSand,
+				randomUseGrass,
+				randomUseRock,
+				randomSandTexturePath,
+				randomGrassTexturePath,
+				randomRockTexturePath,
 				resolution,
 				waterLevel,
 				savePath,
@@ -133,6 +161,7 @@ public partial class TerrainGenerator : Node3D
 
 	private void EmitProgressSignal(float progress, string status)
 	{
+		// Emit only existing signal names to avoid editor console spam.
 		if (HasSignal("progress_updated"))
 			EmitSignal("progress_updated", progress, status);
 		if (HasSignal("ProgressUpdated"))
@@ -151,6 +180,12 @@ public partial class TerrainGenerator : Node3D
 		int length, int width,
 		float minHeight, float maxHeight,
 		float sandGrass, float grassRock,
+		bool randomUseSand,
+		bool randomUseGrass,
+		bool randomUseRock,
+		string randomSandTexturePath,
+		string randomGrassTexturePath,
+		string randomRockTexturePath,
 		int resolution,
 		float waterLevel,
 		string savePath,
@@ -335,14 +370,26 @@ public partial class TerrainGenerator : Node3D
 				GD.Print($"✅ Маска дорог создана: {texRes}x{texRes}, пикселей дорог: {roadPixels}");
 			}
 		}
+
+		ResolveTexturePaths(
+			randomUseSand,
+			randomUseGrass,
+			randomUseRock,
+			randomSandTexturePath,
+			randomGrassTexturePath,
+			randomRockTexturePath,
+			out string sandPath,
+			out string grassPath,
+			out string rockPath
+		);
 		
 		await TerrainTexturePainter.ApplyHeightTexture(
 			meshInstance,
 			minHeight,
 			maxHeight,
-			TerraConfig.SandTexturePath,
-			TerraConfig.GrassTexturePath,
-			TerraConfig.RockTexturePath,
+			sandPath,
+			grassPath,
+			rockPath,
 			savePath,
 			sandGrass,
 			grassRock,
@@ -412,6 +459,9 @@ public partial class TerrainGenerator : Node3D
 		bool realMapUseSand = true,
 		bool realMapUseGrass = true,
 		bool realMapUseRock = true,
+		string realMapSandTexturePath = "",
+		string realMapGrassTexturePath = "",
+		string realMapRockTexturePath = "",
 		float realMapObjectSpacingMultiplier = 0.70f
 	)
 	{
@@ -426,6 +476,9 @@ public partial class TerrainGenerator : Node3D
 			realMapUseSand,
 			realMapUseGrass,
 			realMapUseRock,
+			realMapSandTexturePath,
+			realMapGrassTexturePath,
+			realMapRockTexturePath,
 			realMapObjectSpacingMultiplier,
 			(progress, status) => {
 				CallDeferred(MethodName.EmitProgressSignal, progress, status);
@@ -461,6 +514,55 @@ public partial class TerrainGenerator : Node3D
 	{
 		if (dict == null || !dict.ContainsKey(key)) return null;
 		return dict[key].VariantType == Variant.Type.Dictionary ? dict[key].AsGodotDictionary() : null;
+	}
+
+	private static void ResolveTexturePaths(
+		bool useSandTexture,
+		bool useGrassTexture,
+		bool useRockTexture,
+		string sandTexturePath,
+		string grassTexturePath,
+		string rockTexturePath,
+		out string sandPath,
+		out string grassPath,
+		out string rockPath
+	)
+	{
+		if (!(useSandTexture || useGrassTexture || useRockTexture))
+			useSandTexture = true;
+
+		string sandTex = string.IsNullOrWhiteSpace(sandTexturePath) ? TerraConfig.SandTexturePath : sandTexturePath;
+		string grassTex = string.IsNullOrWhiteSpace(grassTexturePath) ? TerraConfig.GrassTexturePath : grassTexturePath;
+		string rockTex = string.IsNullOrWhiteSpace(rockTexturePath) ? TerraConfig.RockTexturePath : rockTexturePath;
+
+		if (useSandTexture && useGrassTexture && useRockTexture)
+		{
+			sandPath = sandTex; grassPath = grassTex; rockPath = rockTex;
+		}
+		else if (useSandTexture && useGrassTexture && !useRockTexture)
+		{
+			sandPath = sandTex; grassPath = grassTex; rockPath = grassTex;
+		}
+		else if (useSandTexture && !useGrassTexture && useRockTexture)
+		{
+			sandPath = sandTex; grassPath = rockTex; rockPath = rockTex;
+		}
+		else if (!useSandTexture && useGrassTexture && useRockTexture)
+		{
+			sandPath = grassTex; grassPath = grassTex; rockPath = rockTex;
+		}
+		else if (useSandTexture && !useGrassTexture && !useRockTexture)
+		{
+			sandPath = sandTex; grassPath = sandTex; rockPath = sandTex;
+		}
+		else if (!useSandTexture && useGrassTexture && !useRockTexture)
+		{
+			sandPath = grassTex; grassPath = grassTex; rockPath = grassTex;
+		}
+		else
+		{
+			sandPath = rockTex; grassPath = rockTex; rockPath = rockTex;
+		}
 	}
 
 

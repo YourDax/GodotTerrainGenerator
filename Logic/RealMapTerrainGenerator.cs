@@ -54,6 +54,9 @@ public static class RealMapTerrainGenerator
 		bool useSandTexture = true,
 		bool useGrassTexture = true,
 		bool useRockTexture = true,
+		string sandTexturePath = "",
+		string grassTexturePath = "",
+		string rockTexturePath = "",
 		float objectSpacingMultiplier = 0.70f,
 		ProgressCallback progressCallback = null
 	)
@@ -133,47 +136,17 @@ public static class RealMapTerrainGenerator
 		// Передаем исходный массив высот напрямую, чтобы избежать проблем с порядком вершин
 		const float SAND_GRASS_THRESHOLD = 0.35f;
 		const float GRASS_ROCK_THRESHOLD = 0.65f;
-		if (!(useSandTexture || useGrassTexture || useRockTexture))
-			useSandTexture = true;
-		string sandTex = TerraConfig.SandTexturePath;
-		string grassTex = TerraConfig.GrassTexturePath;
-		string rockTex = TerraConfig.RockTexturePath;
-		string sandPath;
-		string grassPath;
-		string rockPath;
-		// Явная логика по комбинациям:
-		// - без камня: песок снизу, трава сверху
-		// - без травы: песок снизу, камень сверху
-		// - без песка: трава снизу, камень сверху
-		// - при одной текстуре: вся карта одной текстурой
-		if (useSandTexture && useGrassTexture && useRockTexture)
-		{
-			sandPath = sandTex; grassPath = grassTex; rockPath = rockTex;
-		}
-		else if (useSandTexture && useGrassTexture && !useRockTexture)
-		{
-			sandPath = sandTex; grassPath = grassTex; rockPath = grassTex;
-		}
-		else if (useSandTexture && !useGrassTexture && useRockTexture)
-		{
-			sandPath = sandTex; grassPath = rockTex; rockPath = rockTex;
-		}
-		else if (!useSandTexture && useGrassTexture && useRockTexture)
-		{
-			sandPath = grassTex; grassPath = grassTex; rockPath = rockTex;
-		}
-		else if (useSandTexture && !useGrassTexture && !useRockTexture)
-		{
-			sandPath = sandTex; grassPath = sandTex; rockPath = sandTex;
-		}
-		else if (!useSandTexture && useGrassTexture && !useRockTexture)
-		{
-			sandPath = grassTex; grassPath = grassTex; rockPath = grassTex;
-		}
-		else // !useSandTexture && !useGrassTexture && useRockTexture
-		{
-			sandPath = rockTex; grassPath = rockTex; rockPath = rockTex;
-		}
+		ResolveTexturePaths(
+			useSandTexture,
+			useGrassTexture,
+			useRockTexture,
+			sandTexturePath,
+			grassTexturePath,
+			rockTexturePath,
+			out string sandPath,
+			out string grassPath,
+			out string rockPath
+		);
 		RealWorldTexturePainter.ApplyHeightTexture(
 			meshInstance,
 			heights,
@@ -232,6 +205,55 @@ public static class RealMapTerrainGenerator
 	private static int ResolveResolution(float north, float south, float west, float east, int resolutionMode)
 	{
 		return TerrainMath.ResolveResolution(north, south, west, east, resolutionMode);
+	}
+
+	private static void ResolveTexturePaths(
+		bool useSandTexture,
+		bool useGrassTexture,
+		bool useRockTexture,
+		string sandTexturePath,
+		string grassTexturePath,
+		string rockTexturePath,
+		out string sandPath,
+		out string grassPath,
+		out string rockPath
+	)
+	{
+		if (!(useSandTexture || useGrassTexture || useRockTexture))
+			useSandTexture = true;
+
+		string sandTex = string.IsNullOrWhiteSpace(sandTexturePath) ? TerraConfig.SandTexturePath : sandTexturePath;
+		string grassTex = string.IsNullOrWhiteSpace(grassTexturePath) ? TerraConfig.GrassTexturePath : grassTexturePath;
+		string rockTex = string.IsNullOrWhiteSpace(rockTexturePath) ? TerraConfig.RockTexturePath : rockTexturePath;
+
+		if (useSandTexture && useGrassTexture && useRockTexture)
+		{
+			sandPath = sandTex; grassPath = grassTex; rockPath = rockTex;
+		}
+		else if (useSandTexture && useGrassTexture && !useRockTexture)
+		{
+			sandPath = sandTex; grassPath = grassTex; rockPath = grassTex;
+		}
+		else if (useSandTexture && !useGrassTexture && useRockTexture)
+		{
+			sandPath = sandTex; grassPath = rockTex; rockPath = rockTex;
+		}
+		else if (!useSandTexture && useGrassTexture && useRockTexture)
+		{
+			sandPath = grassTex; grassPath = grassTex; rockPath = rockTex;
+		}
+		else if (useSandTexture && !useGrassTexture && !useRockTexture)
+		{
+			sandPath = sandTex; grassPath = sandTex; rockPath = sandTex;
+		}
+		else if (!useSandTexture && useGrassTexture && !useRockTexture)
+		{
+			sandPath = grassTex; grassPath = grassTex; rockPath = grassTex;
+		}
+		else
+		{
+			sandPath = rockTex; grassPath = rockTex; rockPath = rockTex;
+		}
 	}
 
 	private static async Task<float[,]> RequestHeightsFromOpenTopo(
