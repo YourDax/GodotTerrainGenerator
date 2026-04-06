@@ -14,13 +14,13 @@ public static class HeightMapUtils
         var mesh = meshInstance?.Mesh;
         if (mesh == null || mesh.GetSurfaceCount() == 0)
         {
-            ErrorHandler.LogWarning("HeightMapUtils", "Меш пуст или не содержит поверхностей");
+            GD.PushWarning("[HeightMapUtils] Меш пуст или не содержит поверхностей");
             return null;
         }
 
         if (mesh is not ArrayMesh arrayMesh)
         {
-            ErrorHandler.LogWarning("HeightMapUtils", "Mesh не является ArrayMesh");
+            GD.PushWarning("[HeightMapUtils] Mesh не является ArrayMesh");
             return null;
         }
 
@@ -30,7 +30,7 @@ public static class HeightMapUtils
 
         if (verticesArray == null || verticesArray.Count == 0)
         {
-            ErrorHandler.LogWarning("HeightMapUtils", "Массив вершин пуст");
+            GD.PushWarning("[HeightMapUtils] Массив вершин пуст");
             return null;
         }
 
