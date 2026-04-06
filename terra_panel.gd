@@ -3,6 +3,7 @@ extends VBoxContainer
 
 signal generate_pressed(config)
 signal continue_settings_requested(direction)
+signal export_blender_requested(target_dir)
 
 @export var apply_auto_theme: bool = true
 @export var lock_element_sizes: bool = true
@@ -38,6 +39,8 @@ signal continue_settings_requested(direction)
 @onready var road_texture_file_dialog = $"MainScroll/MainContent/SectionTextures/Body/HBoxContainerRoadTexture/RoadTextureFileDialog"
 @onready var random_texture_file_dialog = $"MainScroll/MainContent/SectionTextures/Body/RandomTextureFileDialog"
 @onready var realmap_texture_file_dialog = $"MainScroll/MainContent/SectionTextures/Body/RealMapTextureFileDialog"
+@onready var export_button = $"MainScroll/MainContent/ExportBlenderButton"
+@onready var export_folder_dialog = $"MainScroll/MainContent/ExportFolderDialog"
 
 var continue_generation_check: CheckBox = null
 var continue_direction_selector: OptionButton = null
@@ -147,6 +150,7 @@ func _ready():
 	
 	# Настраиваем дороги
 	_setup_roads()
+	_setup_export_controls()
 	_setup_continue_generation_controls()
 	_setup_scatter_objects()
 	if scatter_section:
@@ -155,6 +159,7 @@ func _ready():
 	if island_row0:
 		island_row0.visible = not real_map_check.button_pressed
 	_place_generate_button_top()
+	_place_export_button_bottom()
 	_apply_visual_design()
 	if Engine.is_editor_hint() and enable_editor_manual_layout_mode:
 		_apply_editor_manual_layout_mode()
@@ -181,6 +186,15 @@ func _place_generate_button_top() -> void:
 	if generate_button.get_parent() != main_content:
 		generate_button.reparent(main_content)
 	main_content.move_child(generate_button, 0)
+
+func _place_export_button_bottom() -> void:
+	var main_content := get_node_or_null("MainScroll/MainContent") as VBoxContainer
+	var export_btn := get_node_or_null("MainScroll/MainContent/ExportBlenderButton") as Button
+	if main_content == null or export_btn == null:
+		return
+	if export_btn.get_parent() != main_content:
+		export_btn.reparent(main_content)
+	main_content.move_child(export_btn, main_content.get_child_count() - 1)
 
 func _apply_visual_design() -> void:
 	if not apply_auto_theme:
@@ -216,6 +230,11 @@ func _apply_visual_design() -> void:
 		generate_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		generate_button.custom_minimum_size = Vector2(0, 44)
 		generate_button.add_theme_color_override("font_color", Color(0.05, 0.07, 0.10, 1.0))
+
+	var export_btn: Button = get_node_or_null("MainScroll/MainContent/ExportBlenderButton") as Button
+	if export_btn:
+		export_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		export_btn.custom_minimum_size = Vector2(0, 40)
 
 	_tune_row_layout(random_block)
 	_tune_row_layout(realmap_block)
@@ -636,6 +655,22 @@ func _setup_roads():
 		road_texture_button.pressed.connect(_on_road_texture_button_pressed)
 	if road_texture_file_dialog:
 		road_texture_file_dialog.file_selected.connect(_on_road_texture_file_selected)
+
+func _setup_export_controls() -> void:
+	if export_button and not export_button.pressed.is_connected(_on_export_button_pressed):
+		export_button.pressed.connect(_on_export_button_pressed)
+	if export_folder_dialog:
+		export_folder_dialog.access = FileDialog.ACCESS_FILESYSTEM
+		export_folder_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+		if not export_folder_dialog.dir_selected.is_connected(_on_export_folder_selected):
+			export_folder_dialog.dir_selected.connect(_on_export_folder_selected)
+
+func _on_export_button_pressed() -> void:
+	if export_folder_dialog:
+		export_folder_dialog.popup_centered_ratio(0.8)
+
+func _on_export_folder_selected(dir_path: String) -> void:
+	emit_signal("export_blender_requested", dir_path)
 
 func _setup_continue_generation_controls() -> void:
 	if random_block == null:
