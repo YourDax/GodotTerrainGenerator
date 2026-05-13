@@ -7,11 +7,13 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+// Клиент для запроса OSM-объектов и геометрии через Overpass API.
 public sealed class OsmOverpassClient
 {
 	private readonly System.Net.Http.HttpClient _http;
 	private readonly string[] _overpassUrls;
 
+	// Создаёт клиент Overpass и список запасных endpoints.
 	public OsmOverpassClient(
 		System.Net.Http.HttpClient http,
 		string overpassUrl = "https://overpass-api.de/api/interpreter"
@@ -32,6 +34,7 @@ public sealed class OsmOverpassClient
 	/// <summary>
 	/// Получить деревья по bbox (south, west, north, east). Берём OSM nodes с natural=tree и деревья внутри landuse=forest/wood через nodes тоже.
 	/// </summary>
+	// Запрашивает точки деревьев в заданном bbox.
 	public async Task<List<OsmNode>> FetchTreeNodesAsync(
 		double south,
 		double west,
@@ -121,6 +124,7 @@ out body;
 		return result;
 	}
 
+	// Запрашивает полигоны воды в заданном bbox.
 	public async Task<List<List<Vector2>>> FetchWaterPolygonsAsync(
 		double south,
 		double west,

@@ -7,6 +7,7 @@ using System.Text;
 
 public sealed class ProjectPerformanceTestSuite
 {
+	// Запускает набор проверок, ориентированных на производительность и устойчивость.
 	public TestGroupResult Run()
 	{
 		var group = new TestGroupResult(

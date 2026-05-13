@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using HttpClient = System.Net.Http.HttpClient;
 
+// Вспомогательные утилиты для построения тестовых сцен, моков и временных файлов.
 public static class TestTools
 {
+	// Исполняет тестовую операцию, ловит исключения и измеряет длительность.
 	public static TestOperationResult RunOperation(string name, string whatIsChecked, string expectedResult, Func<string> action)
 	{
 		var watch = Stopwatch.StartNew();
@@ -25,6 +27,7 @@ public static class TestTools
 		}
 	}
 
+	// Создаёт временную папку внутри пользовательского хранилища тестов.
 	public static string EnsureTempFolder(string folderName)
 	{
 		string baseDir = ProjectSettings.GlobalizePath("user://terragenerating_tests");
@@ -33,6 +36,7 @@ public static class TestTools
 		return fullDir;
 	}
 
+	// Строит типовой terrain instance для тестов генерации и экспорта.
 	public static MeshInstance3D CreateSampleTerrainInstance(int length, int width, int resolution, int seedOffset = 0)
 	{
 		var generator = new RandomTerrainGenerator();
@@ -76,6 +80,7 @@ public static class TestTools
 		return instance;
 	}
 
+	// Создаёт тестовую карту высот с пользовательской функцией заполнения.
 	public static float[,] CreateHeightGrid(int sizeX, int sizeZ, Func<int, int, float> valueFactory)
 	{
 		var heights = new float[sizeX, sizeZ];
@@ -89,6 +94,7 @@ public static class TestTools
 		return heights;
 	}
 
+	// Возвращает первый существующий ресурс из набора путей.
 	public static string FindFirstExistingResource(params string[] candidates)
 	{
 		for (int i = 0; i < candidates.Length; i++)
@@ -99,6 +105,7 @@ public static class TestTools
 		return string.Empty;
 	}
 
+	// Находит или создаёт корневой узел для временных тестовых объектов.
 	public static Node3D GetOrCreateTestRoot(string name = "TerraGeneratingTests")
 	{
 		var tree = Engine.GetMainLoop() as SceneTree;
@@ -129,6 +136,7 @@ public static class TestTools
 		return root;
 	}
 
+	// Добавляет узел в тестовый root и синхронизирует owner для сохранения сцены.
 	public static void AddToTestRoot(Node3D child, Node3D root)
 	{
 		if (child == null || root == null)
@@ -149,6 +157,7 @@ public static class TestTools
 		}
 	}
 
+	// Рекурсивно выставляет owner для всего поддерева.
 	private static void SetOwnerRecursive(Node node, Node owner)
 	{
 		if (node == null || owner == null)
@@ -160,6 +169,7 @@ public static class TestTools
 		}
 	}
 
+	// Прикрепляет Node3D к активной сцене или текущему выбранному узлу.
 	public static Node3D AttachToScene(Node3D node)
 	{
 		if (node == null)
@@ -186,6 +196,7 @@ public static class TestTools
 		return node;
 	}
 
+	// Прикрепляет любой Node к активной сцене с учётом editor selection.
 	public static T AttachToScene<T>(T node) where T : Node
 	{
 		if (node == null)
@@ -212,11 +223,13 @@ public static class TestTools
 		return node;
 	}
 
+	// Создаёт HttpClient с подменяемым обработчиком ответа для тестов без сети.
 	public static HttpClient CreateHttpClient(Func<HttpRequestMessage, HttpResponseMessage> handler)
 	{
 		return new HttpClient(new ScriptedHttpMessageHandler(handler));
 	}
 
+	// Возвращает путь в user-хранилище для временных текстурных файлов.
 	public static string CreateSampleTexturePath(string fileName)
 	{
 		return $"user://terragenerating_tests/{fileName}";
@@ -226,11 +239,13 @@ public static class TestTools
 	{
 		private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
 
+		// Сохраняет пользовательский делегат, который формирует ответы для HttpClient.
 		public ScriptedHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
 		{
 			_handler = handler;
 		}
 
+		// Возвращает заранее подготовленный ответ без сетевого запроса.
 		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
 			return Task.FromResult(_handler(request));

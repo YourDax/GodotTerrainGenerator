@@ -1,5 +1,6 @@
 using Godot;
 
+// Общие пути ресурсов и настройки для аддона.
 public static class TerraConfig
 {
 	private const string LegacyAddonRoot = "res://addons/terragenerating";
@@ -21,6 +22,7 @@ public static class TerraConfig
 	public const float MinRoadWidthWorld = 1.0f;
 	public const float MaxRoadWidthWorld = 5.0f;
 
+	// Возвращает подходящее разрешение текстуры под размер карты.
 	public static int GetTextureResolutionForSize(int maxSize)
 	{
 		if (maxSize > 500) return 4096;
@@ -31,6 +33,7 @@ public static class TerraConfig
 		return 1024;
 	}
 
+	// Вычисляет масштаб тайлинга текстур для заданного размера карты.
 	public static float GetTileScaleForSize(int maxSize)
 	{
 		// Adaptive continuous formula instead of hard thresholds.
@@ -41,12 +44,14 @@ public static class TerraConfig
 		return Mathf.Clamp(tileScale, 5.0f, 60.0f);
 	}
 
+	// Подбирает мировую ширину дороги пропорционально размеру террейна.
 	public static float GetRoadWidthForTerrain(int length, int width)
 	{
 		float roadWidth = Mathf.Max(length, width) * DefaultRoadWidthPercent;
 		return Mathf.Clamp(roadWidth, MinRoadWidthWorld, MaxRoadWidthWorld);
 	}
 
+	// Находит фактический корень аддона, поддерживая старый путь для совместимости.
 	private static string ResolveAddonRootPath()
 	{
 		if (!string.IsNullOrEmpty(_addonRootCache))

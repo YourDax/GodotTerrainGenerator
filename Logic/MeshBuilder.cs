@@ -4,6 +4,7 @@ using Godot;
 public static class MeshBuilder
 {
 	// Генерация меша на основе шума высот (старый метод для обратной совместимости)
+	// Сохраняет старую сигнатуру и сводит её к многослойной генерации.
 	public static Mesh BuildHeightMesh(
 		int length, int width,
 		float minHeight, float maxHeight,
@@ -32,6 +33,7 @@ public static class MeshBuilder
 	}
 	
 	// Генерация меша на основе многослойного шума для реалистичного ландшафта
+	// Собирает основной height mesh из нескольких шумовых слоёв и опционального островного режима.
 	public static Mesh BuildHeightMesh(
 		int length, int width,
 		float minHeight, float maxHeight,
@@ -260,6 +262,7 @@ public static class MeshBuilder
 	}
 
 	// Создание меша на основе существующей heightmap
+	// Преобразует готовую карту высот в плоский terrain mesh.
 	public static Mesh BuildTerrainMesh(float[,] heightmap, int length, int width)
 	{
 		// Получение размерностей массива

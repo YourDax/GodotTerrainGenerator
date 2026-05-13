@@ -8,6 +8,7 @@ var _tests_progress_dialog: Window = null
 # Запуск из консоли/редактора:
 # var runner = preload("res://addons/terragenerating/Tests/test_runner.gd").new(); add_child(runner); runner.run_all_tests()
 func run_all_tests() -> bool:
+	# Запускает C#-suite тестов и показывает отдельный прогресс-диалог.
 	var suite_script := load("res://addons/terragenerating/Tests/ProjectTestingSuite.cs")
 	if suite_script == null:
 		push_error("ProjectTestingSuite script not found. Ensure C# scripts are compiled.")
@@ -38,5 +39,6 @@ func run_all_tests() -> bool:
 	return ok
 
 func _on_tests_progress_updated(progress: float, status: String) -> void:
+	# Пробрасывает статус тестов в окно прогресса.
 	if _tests_progress_dialog:
 		_tests_progress_dialog.update_progress(progress, status)

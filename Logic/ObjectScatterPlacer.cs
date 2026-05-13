@@ -13,6 +13,7 @@ public static class ObjectScatterPlacer
 	/// <summary>Утопить опорную точку вдоль наружной нормали к поверхности (мировые единицы).</summary>
 	private const float EmbedIntoSurface = 0.08f;
 
+	// Расставляет объекты по поверхности террейна с учётом воды, дорог и дистанции между экземплярами.
 	public static void Scatter(
 		Node3D terrainRoot,
 		MeshInstance3D terrainMesh,
@@ -156,6 +157,7 @@ public static class ObjectScatterPlacer
 		}
 	}
 
+	// Проверяет, не слишком ли близко новая точка к уже размещённым объектам.
 	private static bool IsTooCloseToAny(List<Vector2> placed, Vector2 candidate, float minDist)
 	{
 		float d2 = minDist * minDist;
@@ -170,6 +172,7 @@ public static class ObjectScatterPlacer
 	/// <summary>
 	/// Центр нижней грани AABB модели в локальном пространстве корня инстанса (куда должна попасть точка на террейне).
 	/// </summary>
+	// Находит центр нижней грани модели в локальном пространстве корня инстанса.
 	private static Vector3 GetBottomCenterLocalInRootSpace(Node3D root)
 	{
 		Aabb merged = default;
@@ -188,6 +191,7 @@ public static class ObjectScatterPlacer
 			merged.Position.Z + merged.Size.Z * 0.5f);
 	}
 
+	// Собирает AABB всех вложенных MeshInstance3D в корневом пространстве.
 	private static void CollectMeshesRecursive(Node3D node, Transform3D rootToNode, ref Aabb merged, ref bool has)
 	{
 		foreach (Node child in node.GetChildren())
@@ -210,6 +214,7 @@ public static class ObjectScatterPlacer
 		}
 	}
 
+	// Переводит AABB в другое пространство с учётом всех восьми углов.
 	private static Aabb TransformAabb(Transform3D transform, Aabb aabb)
 	{
 		Vector3 min = aabb.Position;
@@ -234,6 +239,7 @@ public static class ObjectScatterPlacer
 		return new Aabb(minOut, maxOut - minOut);
 	}
 
+	// Оценивает локальную нормаль поверхности по карте высот.
 	private static Vector3 SampleSurfaceNormalLocal(
 		float[,] heights,
 		int resolution,
@@ -253,6 +259,7 @@ public static class ObjectScatterPlacer
 		return new Vector3(-hx * invLen, invLen, -hz * invLen);
 	}
 
+	// Проверяет, попадает ли точка в область дороги по текстурной маске.
 	private static bool IsOnRoad(float[,] roadMask, int texRes, int length, int width, float wx, float wz)
 	{
 		float halfL = length * 0.5f;
@@ -268,6 +275,7 @@ public static class ObjectScatterPlacer
 		return roadMask[texX, texZ] > RoadMaskThreshold;
 	}
 
+	// Берёт высоту из карты по мировым координатам через билинейную интерполяцию.
 	private static float SampleHeightBilinear(float[,] heights, int resolution, float wx, float wz, int length, int width)
 	{
 		float halfL = length * 0.5f;
@@ -293,6 +301,7 @@ public static class ObjectScatterPlacer
 		return Mathf.Lerp(hx0, hx1, tz);
 	}
 
+	// Восстанавливает карту высот из готового mesh instance.
 	private static float[,] ExtractHeightsFromMesh(MeshInstance3D meshInstance, int length, int width, int resolution)
 	{
 		var mesh = meshInstance.Mesh;
@@ -353,6 +362,7 @@ public static class ObjectScatterPlacer
 		return heights;
 	}
 
+	// Загружает ресурс модели и приводит его к Node3D для размещения в сцене.
 	private static Node3D InstantiateModel(string path)
 	{
 		bool exists = path.StartsWith("res://", StringComparison.Ordinal)
@@ -385,6 +395,7 @@ public static class ObjectScatterPlacer
 		return null;
 	}
 
+	// Оборачивает произвольный Node в Node3D, чтобы его можно было позиционировать в мире.
 	private static Node3D WrapInNode3D(Node node)
 	{
 		var holder = new Node3D();

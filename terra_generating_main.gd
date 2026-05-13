@@ -234,6 +234,7 @@ func _find_nearest_water_plane(root: Node3D, around_pos: Vector3) -> MeshInstanc
 	return best
 
 func _is_continuation_terrain_mesh(mesh_child: MeshInstance3D) -> bool:
+	# Проверяет, является ли mesh подходящим terrain-чанком для continuation.
 	if mesh_child == null or mesh_child.mesh == null:
 		return false
 	if mesh_child.has_meta("terrain_length") or mesh_child.has_meta("terrain_width") or mesh_child.has_meta("terrain_resolution"):
@@ -248,6 +249,7 @@ func _is_continuation_terrain_mesh(mesh_child: MeshInstance3D) -> bool:
 	return false
 
 func _is_water_mesh(mesh_child: MeshInstance3D) -> bool:
+	# Проверяет, помечен ли mesh как водная плоскость.
 	if mesh_child == null or mesh_child.mesh == null:
 		return false
 	if mesh_child.has_meta("terrain_is_water"):
@@ -255,6 +257,7 @@ func _is_water_mesh(mesh_child: MeshInstance3D) -> bool:
 	return str(mesh_child.name).begins_with("WaterPlane")
 
 func _on_generate_pressed(config: Dictionary):
+	# Запускает генерацию terrain из конфигурации панели.
 	var real_map_mode := bool(config.get("real_map_mode", false))
 	var length := int(config.get("length", 0))
 	var width := int(config.get("width", 0))
@@ -351,6 +354,7 @@ func _on_generate_pressed(config: Dictionary):
 	print("Метод Generate вызван")
 
 func _on_progress_updated(progress: float, status: String):
+	# Обновляет диалог прогресса при генерации terrain.
 	"""Обработчик обновления прогресса из C#"""
 	if progress_dialog:
 		progress_dialog.update_progress(progress, status)
@@ -364,10 +368,12 @@ func _on_progress_updated(progress: float, status: String):
 			_active_terrain_instance = null
 
 func _on_progress_dialog_cancel_requested() -> void:
+	# Пробрасывает отмену из диалога в активную генерацию.
 	if _active_terrain_instance != null and _active_terrain_instance.has_method("CancelGeneration"):
 		_active_terrain_instance.call("CancelGeneration")
 
 func _on_export_blender_requested(target_dir: String) -> void:
+	# Запускает экспорт выбранной сцены в набор файлов для Blender.
 	_show_export_progress("Подготовка экспорта...")
 	_update_export_progress(2.0, "Проверка выделения")
 	_export_cancel_requested = false
@@ -492,6 +498,7 @@ func _on_export_blender_requested(target_dir: String) -> void:
 	_close_export_progress()
 
 func _build_export_mesh_root(sources: Array[Node], report_lines: PackedStringArray, export_dir: String) -> Node3D:
+	# Собирает копию сцены, содержащую только меши, предназначенные для экспорта.
 	var export_root := Node3D.new()
 	export_root.name = "TerrainExportRoot"
 	var seen_meshes := {}
@@ -521,6 +528,7 @@ func _build_export_mesh_root(sources: Array[Node], report_lines: PackedStringArr
 	return export_root
 
 func _collect_mesh_candidates(node: Node, seen_meshes: Dictionary, out: Array[MeshInstance3D]) -> void:
+	# Рекурсивно собирает все MeshInstance3D без повторов.
 	if node is MeshInstance3D:
 		var mesh_src := node as MeshInstance3D
 		if mesh_src.mesh != null:
@@ -532,6 +540,7 @@ func _collect_mesh_candidates(node: Node, seen_meshes: Dictionary, out: Array[Me
 		_collect_mesh_candidates(child, seen_meshes, out)
 
 func _process_single_mesh_for_export(node: Node, export_root: Node3D, seen_meshes: Dictionary, report_lines: PackedStringArray, export_dir: String, texture_cache: Dictionary) -> void:
+	# Копирует один mesh в export_root и готовит его материалы для Blender.
 	if node is MeshInstance3D:
 		var mesh_src := node as MeshInstance3D
 		if mesh_src.mesh != null:
@@ -561,6 +570,7 @@ func _process_single_mesh_for_export(node: Node, export_root: Node3D, seen_meshe
 			report_lines.append("Mesh skipped (null mesh): %s" % _node_path(mesh_src))
 
 func _prepare_mesh_materials_for_export(mesh_src: MeshInstance3D, mesh_copy: MeshInstance3D, export_dir: String, report_lines: PackedStringArray, texture_cache: Dictionary) -> void:
+	# Перепривязывает материалы поверхности к экспортируемой копии mesh.
 	if mesh_src.material_override != null:
 		mesh_copy.material_override = _prepare_material_for_export(mesh_src.material_override, export_dir, report_lines, texture_cache, str(mesh_src.name) + "_override")
 
@@ -573,6 +583,7 @@ func _prepare_mesh_materials_for_export(mesh_src: MeshInstance3D, mesh_copy: Mes
 			mesh_copy.set_surface_override_material(i, _prepare_material_for_export(src_surface_mat, export_dir, report_lines, texture_cache, "%s_s%d" % [str(mesh_src.name), i]))
 
 func _prepare_material_for_export(mat: Material, export_dir: String, report_lines: PackedStringArray, texture_cache: Dictionary, label: String) -> Material:
+	# Конвертирует материал в формат, который лучше понимает Blender glTF импортёр.
 	if mat == null:
 		return null
 	if mat is StandardMaterial3D:
@@ -593,6 +604,7 @@ func _prepare_material_for_export(mat: Material, export_dir: String, report_line
 	return mat
 
 func _export_texture_for_blender(tex: Texture2D, export_dir: String, texture_cache: Dictionary, tex_label: String, report_lines: PackedStringArray) -> Texture2D:
+	# Экспортирует texture в PNG рядом с glTF и возвращает уже сохранённый ресурс.
 	if tex == null:
 		return null
 
@@ -630,11 +642,13 @@ func _export_texture_for_blender(tex: Texture2D, export_dir: String, texture_cac
 	return tex
 
 func _node_path(node: Node) -> String:
+	# Возвращает путь узла для читаемого логирования.
 	if node == null:
 		return "<null>"
 	return str(node.get_path())
 
 func _write_export_report(export_dir: String, report_lines: PackedStringArray) -> void:
+	# Сохраняет текстовый отчёт о выполненном экспорте.
 	var report_path := export_dir.path_join("export_report.txt")
 	var f := FileAccess.open(report_path, FileAccess.WRITE)
 	if f == null:
@@ -646,6 +660,7 @@ func _write_export_report(export_dir: String, report_lines: PackedStringArray) -
 	f.close()
 
 func _show_export_progress(status: String) -> void:
+	# Показывает отдельный прогресс-диалог для export pipeline.
 	_close_export_progress()
 	export_progress_dialog = PROGRESS_DIALOG.instantiate()
 	get_editor_interface().get_base_control().add_child(export_progress_dialog)
@@ -660,18 +675,22 @@ func _show_export_progress(status: String) -> void:
 	_update_export_progress(0.0, status)
 
 func _update_export_progress(value: float, status: String) -> void:
+	# Обновляет export progress dialog, если он активен.
 	if export_progress_dialog and export_progress_dialog.has_method("update_progress"):
 		export_progress_dialog.update_progress(value, status)
 
 func _close_export_progress() -> void:
+	# Закрывает export progress dialog и освобождает ссылку.
 	if export_progress_dialog:
 		export_progress_dialog.call("close_dialog")
 		export_progress_dialog = null
 
 func _on_export_progress_cancel_requested() -> void:
+	# Помечает экспорт как отменённый по запросу пользователя.
 	_export_cancel_requested = true
 
 func _get_selected_node3d() -> Node3D:
+	# Берёт текущий выделенный Node3D из редактора.
 	var selection = get_editor_interface().get_selection()
 	if selection == null:
 		return null
@@ -681,6 +700,7 @@ func _get_selected_node3d() -> Node3D:
 	return selected_nodes[0] as Node3D
 
 func _collect_export_sources(selected_root: Node3D) -> Array[Node]:
+	# Определяет, откуда именно собирать данные для экспорта.
 	var out: Array[Node] = []
 
 	var terrain_ancestor := _find_terrain_ancestor(selected_root)
@@ -696,6 +716,7 @@ func _collect_export_sources(selected_root: Node3D) -> Array[Node]:
 	return out
 
 func _find_terrain_ancestor(node: Node) -> Node3D:
+	# Ищет ближайший родительский TerrainGenerator в иерархии.
 	var current := node
 	while current != null:
 		if current is Node3D and current.has_method("GenerateFromConfig"):
@@ -704,6 +725,7 @@ func _find_terrain_ancestor(node: Node) -> Node3D:
 	return null
 
 func _collect_terrain_descendants(root: Node, out: Array[Node]) -> void:
+	# Собирает вложенные TerrainGenerator-узлы в поддереве.
 	for child in root.get_children():
 		if child is Node3D and child.has_method("GenerateFromConfig"):
 			out.append(child)

@@ -9,6 +9,7 @@ public sealed class ProjectTestRunner
 	{
 		var startedAt = DateTime.Now;
 		var watch = Stopwatch.StartNew();
+		// Запускаем только активные наборы тестов, которые реально входят в текущий прогон.
 		var steps = new (string Name, Func<TestGroupResult> Run)[]
 		{
 			("Модульные тесты", () => new ProjectModuleTestSuite().Run()),

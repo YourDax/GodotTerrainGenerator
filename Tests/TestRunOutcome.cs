@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 public sealed class TestRunOutcome
 {
+	// Сводит результаты всех тестовых групп в один прогон.
 	public TestRunOutcome(List<TestGroupResult> groups, DateTime startedAt, DateTime finishedAt, long totalDurationMs, bool passed)
 	{
 		Groups = groups;

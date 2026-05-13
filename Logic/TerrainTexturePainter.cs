@@ -9,6 +9,7 @@ public static class TerrainTexturePainter
 	private static readonly bool VerboseTextureLogs = false;
 	private static readonly Dictionary<string, Image> ImageCache = new();
 
+	// Накладывает финальную terrain texture на mesh и при необходимости сохраняет её на диск.
 	public static async Task ApplyHeightTexture(
 		// Меш, на который накладываем текстуру
 		MeshInstance3D meshInstance,
@@ -530,6 +531,7 @@ public static class TerrainTexturePainter
 		private readonly int[] _z1;
 		private readonly float[] _fz;
 
+		// Подготавливает кешированные индексы для быстрого сэмплинга тайловой текстуры.
 		public TextureSampler(Image img, int texRes, float tileScaleX, float tileScaleZ)
 		{
 			_img = img;
@@ -543,6 +545,7 @@ public static class TerrainTexturePainter
 			BuildAxis(texRes, tileScaleZ, img.GetHeight(), _z0, _z1, _fz);
 		}
 
+		// Возвращает билинейно интерполированный цвет для пикселя итоговой карты.
 		public Color Sample(int x, int z)
 		{
 			Color c00 = _img.GetPixel(_x0[x], _z0[z]);
@@ -554,6 +557,7 @@ public static class TerrainTexturePainter
 			return c0.Lerp(c1, _fz[z]);
 		}
 
+		// Готовит индексы и веса интерполяции для одной оси текстуры.
 		private static void BuildAxis(int texRes, float tileScale, int imageSize, int[] i0, int[] i1, float[] f)
 		{
 			for (int p = 0; p < texRes; p++)
@@ -571,6 +575,7 @@ public static class TerrainTexturePainter
 		}
 	}
 
+	// Строит карту крутизны для режима, где камень появляется на склонах.
 	private static float[,] BuildNormalizedSlopeMap(float[,] heightMap, int meshRes, float heightRange)
 	{
 		float[,] slopeMap = new float[meshRes, meshRes];
@@ -592,6 +597,7 @@ public static class TerrainTexturePainter
 		return slopeMap;
 	}
 
+	// Берёт билинейную выборку из вспомогательной карты.
 	private static float SampleMapBilinear(float[,] map, float gridX, float gridZ)
 	{
 		int resX = map.GetLength(0);
@@ -611,6 +617,7 @@ public static class TerrainTexturePainter
 		return Mathf.Lerp(h0, h1, fz);
 	}
 
+	// Пересэмплирует дорожную маску под целевое разрешение текстуры.
 	private static float[,] ResampleRoadMask(float[,] source, int targetWidth, int targetHeight)
 	{
 		int srcWidth = source.GetLength(0);
@@ -634,6 +641,7 @@ public static class TerrainTexturePainter
 		return result;
 	}
 
+	// Загружает Image один раз и переиспользует его между вызовами.
 	private static Image LoadImageCached(string path, string textureLabel)
 	{
 		if (string.IsNullOrEmpty(path))

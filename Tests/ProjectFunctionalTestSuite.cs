@@ -9,6 +9,7 @@ using System.Text;
 
 public sealed partial class ProjectFunctionalTestSuite
 {
+	// Проверяет основные пользовательские сценарии генерации, экспорта и API-интеграций.
 	public TestGroupResult Run()
 	{
 		var group = new TestGroupResult(
@@ -452,6 +453,7 @@ public sealed partial class ProjectFunctionalTestSuite
 	{
 		public bool WasCalled { get; private set; }
 
+		// Отмечает, что сигнал отмены действительно был вызван.
 		public void Mark()
 		{
 			WasCalled = true;

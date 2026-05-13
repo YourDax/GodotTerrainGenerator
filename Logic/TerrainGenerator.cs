@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 
 [Tool]
+// Основной узел, который запускает генерацию случайного и real-map террейна.
 public partial class TerrainGenerator : Node3D
 {
 	private const bool ContinuationDebugLogging = true;
@@ -16,8 +17,10 @@ public partial class TerrainGenerator : Node3D
 
 	// Сигнал для обновления прогресса
 	[Signal]
+	// Сообщает UI текущий процент и текст статуса генерации.
 	public delegate void ProgressUpdatedEventHandler(float progress, string status);
 
+	// Запускает генерацию из словаря конфигурации UI или внешнего кода.
 	public void GenerateFromConfig(Godot.Collections.Dictionary config)
 	{
 		if (config == null)
@@ -68,6 +71,7 @@ public partial class TerrainGenerator : Node3D
 		);
 	}
 	
+	// Запускает основную генерацию террейна в случайном или real-map режиме.
 	public void Generate(
 		int length, int width,
 		float minHeight, float maxHeight,
@@ -161,12 +165,14 @@ public partial class TerrainGenerator : Node3D
 		}
 	}
 
+	// Помечает текущую генерацию как отменённую и уведомляет UI.
 	public void CancelGeneration()
 	{
 		_cancelRequested = true;
 		CallDeferred(MethodName.EmitProgressSignal, 100.0f, "Генерация остановлена пользователем");
 	}
 
+	// Отправляет сигнал прогресса в совместимом с GDScript формате.
 	private void EmitProgressSignal(float progress, string status)
 	{
 		// Emit only existing signal names to avoid editor console spam.
@@ -176,6 +182,7 @@ public partial class TerrainGenerator : Node3D
 			EmitSignal("ProgressUpdated", progress, status);
 	}
 
+	// Проверяет, была ли генерация отменена пользователем.
 	private bool IsGenerationCanceled()
 	{
 		if (!_cancelRequested)
@@ -184,6 +191,7 @@ public partial class TerrainGenerator : Node3D
 		return true;
 	}
 
+	// Логирует общее время генерации и итоговый статус.
 	private static void LogFullGenerationDuration(Stopwatch stopwatch, string mode, string outcome)
 	{
 		if (stopwatch == null)
@@ -192,9 +200,10 @@ public partial class TerrainGenerator : Node3D
 		if (stopwatch.IsRunning)
 			stopwatch.Stop();
 
-		GD.Print($"⏱️ Полный цикл генерации ({mode}) {outcome}: {stopwatch.Elapsed.TotalMilliseconds:F0} мс ({stopwatch.Elapsed.TotalSeconds:F2} с)");
+		GD.Print($"Полный цикл генерации ({mode}) {outcome}: {stopwatch.Elapsed.TotalMilliseconds:F0} мс ({stopwatch.Elapsed.TotalSeconds:F2} с)");
 	}
 
+	// Выполняет асинхронную генерацию случайного террейна, воды, текстур и объектов.
 	private async Task GenerateRandomTerrainAsync(
 		int length, int width,
 		float minHeight, float maxHeight,
@@ -321,7 +330,7 @@ public partial class TerrainGenerator : Node3D
 				plannedPosition.Z
 			);
 			meshBuildStopwatch.Stop();
-			GD.Print($"⏱️ Генерация меша завершена за {meshBuildStopwatch.Elapsed.TotalMilliseconds:F0} мс ({meshBuildStopwatch.Elapsed.TotalSeconds:F2} с)");
+			GD.Print($"Генерация меша завершена за {meshBuildStopwatch.Elapsed.TotalMilliseconds:F0} мс ({meshBuildStopwatch.Elapsed.TotalSeconds:F2} с)");
 			if (IsGenerationCanceled())
 			{
 				generationOutcome = "остановлен пользователем";
@@ -529,6 +538,7 @@ public partial class TerrainGenerator : Node3D
 		}
 	}
 
+	// Выполняет асинхронную генерацию террейна по real-map данным.
 	private async Task GenerateRealMapTerrainAsync(
 		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng,
 		int resolutionMode = 0,
@@ -580,36 +590,42 @@ public partial class TerrainGenerator : Node3D
 		}
 	}
 
+	// Безопасно читает bool из словаря конфигурации.
 	private static bool GetBool(Godot.Collections.Dictionary dict, string key, bool fallback)
 	{
 		if (dict == null || !dict.ContainsKey(key)) return fallback;
 		return dict[key].AsBool();
 	}
 
+	// Безопасно читает int из словаря конфигурации.
 	private static int GetInt(Godot.Collections.Dictionary dict, string key, int fallback)
 	{
 		if (dict == null || !dict.ContainsKey(key)) return fallback;
 		return dict[key].AsInt32();
 	}
 
+	// Безопасно читает float из словаря конфигурации.
 	private static float GetFloat(Godot.Collections.Dictionary dict, string key, float fallback)
 	{
 		if (dict == null || !dict.ContainsKey(key)) return fallback;
 		return dict[key].AsSingle();
 	}
 
+	// Безопасно читает string из словаря конфигурации.
 	private static string GetString(Godot.Collections.Dictionary dict, string key, string fallback)
 	{
 		if (dict == null || !dict.ContainsKey(key)) return fallback;
 		return dict[key].AsString();
 	}
 
+	// Возвращает вложенный словарь конфигурации, если он существует.
 	private static Godot.Collections.Dictionary GetDictionary(Godot.Collections.Dictionary dict, string key)
 	{
 		if (dict == null || !dict.ContainsKey(key)) return null;
 		return dict[key].VariantType == Variant.Type.Dictionary ? dict[key].AsGodotDictionary() : null;
 	}
 
+	// Подбирает итоговые пути текстур для текущего набора флагов использования.
 	private static void ResolveTexturePaths(
 		bool useSandTexture,
 		bool useGrassTexture,
@@ -622,6 +638,7 @@ public partial class TerrainGenerator : Node3D
 		out string rockPath
 	)
 	{
+	// Ищет следующий свободный индекс чанка среди уже созданных мешей.
 		if (!(useSandTexture || useGrassTexture || useRockTexture))
 			useSandTexture = true;
 
@@ -676,6 +693,7 @@ public partial class TerrainGenerator : Node3D
 		return maxIndex + 1;
 	}
 
+	// Считывает seed из метаданных или создаёт новый, если его ещё нет.
 	private int GetOrCreateGeneratorSeed(string metaKey, int salt)
 	{
 		if (HasMeta(metaKey))
@@ -692,21 +710,25 @@ public partial class TerrainGenerator : Node3D
 		return seed;
 	}
 
+	// Формирует имя для первого чанка террейна.
 	private static string BuildInitialMeshName(int index)
 	{
 		return $"GeneratedMesh_Chunk_{index:0000}";
 	}
 
+	// Формирует имя для продолженного чанка террейна.
 	private static string BuildContinuedMeshName(string direction, int index)
 	{
 		return $"GeneratedMesh_Chunk_{index:0000}_{direction}";
 	}
 
+	// Формирует имя для первого water plane.
 	private static string BuildInitialWaterName(int index)
 	{
 		return $"WaterPlane_Chunk_{index:0000}";
 	}
 
+	// Формирует имя для water plane у продолженного чанка.
 	private static string BuildContinuedWaterName(string direction, int index)
 	{
 		return $"WaterPlane_Chunk_{index:0000}_{direction}";

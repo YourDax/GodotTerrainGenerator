@@ -13,6 +13,7 @@ public partial class ProjectTestingSuite : RefCounted
 	{
 		var startedAt = DateTime.Now;
 		GD.Print("[Tests] Starting project test suite");
+		// Пробрасываем прогресс в UI и сохраняем подробный отчёт после завершения прогона.
 		Action<float, string> progress = (value, status) =>
 		{
 			EmitSignal(SignalName.ProgressUpdated, value, status);

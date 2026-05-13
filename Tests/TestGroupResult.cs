@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 public sealed class TestGroupResult
 {
+	// Хранит сводный результат одного тестового блока и его операций.
 	public TestGroupResult(string name, string whatIsChecked, string expectedResult)
 	{
 		Name = name;

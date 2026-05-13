@@ -11,6 +11,7 @@ var _started_at_msec: int = 0
 var _timer_running: bool = false
 
 func _ready():
+	# Настраивает модальное окно прогресса и добавляет таймер отображения времени.
 	# Делаем окно модальным и центрируем его
 	popup_centered()
 	set_flag(Window.FLAG_POPUP, false)
@@ -26,12 +27,14 @@ func _ready():
 	set_process(true)
 
 func start_generation_timer():
+	# Перезапускает внутренний таймер отображения длительности.
 	_started_at_msec = Time.get_ticks_msec()
 	_timer_running = true
 	if elapsed_label:
 		elapsed_label.text = "Время: 00:00"
 
 func _process(_delta: float) -> void:
+	# Обновляет счётчик времени, пока окно прогресса активно.
 	if not _timer_running:
 		return
 	if elapsed_label == null:
@@ -43,6 +46,7 @@ func _process(_delta: float) -> void:
 	
 func update_progress(value: float, status: String = ""):
 	"""Обновляет прогресс-бар и статус"""
+	# Обновляет проценты, статус и останавливает таймер при завершении.
 	progress_bar.value = value
 	percent_label.text = "%.0f%%" % value
 	if value >= 100.0:
@@ -52,6 +56,7 @@ func update_progress(value: float, status: String = ""):
 		status_label.text = status
 
 func _on_close_requested() -> void:
+	# Эмитит отмену, если окно закрывают до завершения операции.
 	if progress_bar and progress_bar.value < 100.0:
 		_timer_running = false
 		emit_signal("cancel_requested")
@@ -59,4 +64,5 @@ func _on_close_requested() -> void:
 
 func close_dialog():
 	"""Закрывает окно прогресса"""
+	# Освобождает окно после завершения или отмены операции.
 	queue_free()

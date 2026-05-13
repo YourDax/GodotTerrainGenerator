@@ -2,6 +2,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 
+// Математические утилиты для высот, координат и масок дорог.
 public static class TerrainMath
 {
 	public enum ResolutionMode
@@ -11,6 +12,7 @@ public static class TerrainMath
 		Adaptive = 2
 	}
 
+	// Нормализует все значения карты высот в заданный диапазон.
 	public static void NormalizeToRange(float[,] h, float minTarget, float maxTarget)
 	{
 		GetMinMax(h, out float min, out float max);
@@ -36,6 +38,7 @@ public static class TerrainMath
 		}
 	}
 
+	// Берёт билинейную выборку из двумерной карты.
 	public static float BilinearSample(float[,] h, float fx, float fz)
 	{
 		int resX = h.GetLength(0);
@@ -59,6 +62,7 @@ public static class TerrainMath
 		return Mathf.Lerp(Mathf.Lerp(h00, h10, tx), Mathf.Lerp(h01, h11, tx), tz);
 	}
 
+	// Подбирает разрешение сетки по размеру географического bbox.
 	public static int ResolveResolution(float north, float south, float west, float east, int resolutionMode)
 	{
 		float dLat = Math.Abs(north - south);
@@ -83,6 +87,7 @@ public static class TerrainMath
 		};
 	}
 
+	// Переводит географические координаты в UV-координаты текстуры.
 	public static Vector2 LonLatToUv(double lat, double lon, float north, float south, float west, float east)
 	{
 		float u = (float)((lon - west) / (east - west));
@@ -90,6 +95,7 @@ public static class TerrainMath
 		return new Vector2(u, v);
 	}
 
+	// Переводит UV в локальные координаты меша.
 	public static Vector3 UvToLocal(float u, float v, float widthUnits, float depthUnits, float y)
 	{
 		float halfX = widthUnits * 0.5f;
@@ -99,6 +105,7 @@ public static class TerrainMath
 		return new Vector3(lx, y, lz);
 	}
 
+	// Рисует дорожную маску по полилинии в мировых координатах.
 	public static void RasterizeRoadMask(float[,] mask, List<Vector2> polylineWorldXZ, int length, int width, float roadWidth)
 	{
 		if (mask == null || polylineWorldXZ == null || polylineWorldXZ.Count < 2)
@@ -148,6 +155,7 @@ public static class TerrainMath
 		}
 	}
 
+	// Находит минимум и максимум в массиве высот.
 	private static void GetMinMax(float[,] h, out float min, out float max)
 	{
 		min = float.MaxValue;

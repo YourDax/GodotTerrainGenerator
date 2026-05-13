@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
+// Служба для продолжения и стыковки соседних чанков террейна.
 public static class TerrainContinuationService
 {
 	private static string _activeDebugLogPath = string.Empty;
@@ -57,6 +58,7 @@ public static class TerrainContinuationService
 		public float Y;
 	}
 
+	// Собирает параметры стыковки для продолжения террейна в выбранном направлении.
 	public static ContinueContext BuildContinueContext(Node3D root, string directionText, bool debugLogging = false)
 	{
 		if (!TryParseDirection(directionText, out ContinueDirection direction))
@@ -189,6 +191,7 @@ public static class TerrainContinuationService
 		};
 	}
 
+	// Подгоняет край нового меша под уже существующий frontier, чтобы стык был гладким.
 	public static void ApplyEdgeConstraintToMesh(Mesh mesh, int resolution, ContinueContext ctx, bool debugLogging = false)
 	{
 		if (mesh == null || ctx == null || ctx.FrontierSegments == null || ctx.FrontierSegments.Count == 0)
@@ -354,6 +357,7 @@ public static class TerrainContinuationService
 		}
 	}
 
+	// Экстраполирует высоту для фиксирующего края на основе первого ряда strip.
 	private static float ComputeExtrapolatedLockHeight(float[,] edgeStrip, int dist, int axis, float sourceRange)
 	{
 		int rows = edgeStrip.GetLength(0);
@@ -385,6 +389,7 @@ public static class TerrainContinuationService
 	}
 
 
+	// Открывает debug-лог continuation и пишет заголовок с базовым контекстом.
 	private static void StartDebugLogIfNeeded(bool debugLogging, Node3D root, string directionText, List<FrontierCandidate> candidates)
 	{
 		if (!debugLogging)
@@ -415,6 +420,7 @@ public static class TerrainContinuationService
 		}
 	}
 
+	// Добавляет строку в debug-лог, если режим отладки включён.
 	private static void AppendDebugLog(bool debugLogging, string line)
 	{
 		if (!debugLogging || string.IsNullOrEmpty(_activeDebugLogPath))
@@ -430,6 +436,7 @@ public static class TerrainContinuationService
 		}
 	}
 
+	// Формирует краткую статистику по смещениям frontier.
 	private static string DescribeOffsetStats(string label, float[] offsets)
 	{
 		if (offsets == null || offsets.Length == 0)
@@ -456,6 +463,7 @@ public static class TerrainContinuationService
 		return $"offsets[{label}] min={min:F3} max={max:F3} mean={sum / offsets.Length:F3} absMean={sumAbs / offsets.Length:F3} p50={p50:F3} p90={p90:F3} p95={p95:F3}";
 	}
 
+	// Показывает самые большие отклонения frontier для диагностики швов.
 	private static string DescribeTopOffsetSamples(string label, float[] offsets, int topN)
 	{
 		if (offsets == null || offsets.Length == 0)
@@ -476,6 +484,7 @@ public static class TerrainContinuationService
 		return sb.ToString().TrimEnd();
 	}
 
+	// Вычисляет позицию нового чанка относительно уже существующего frontier.
 	public static Vector3 ComputeContinuationPosition(ContinueContext ctx, int newLength, int newWidth, float yOffset)
 	{
 		float targetY = ctx.BaseY;
@@ -488,6 +497,7 @@ public static class TerrainContinuationService
 		};
 	}
 
+	// Подбирает рабочее разрешение continuation по размеру frontier и новому чанку.
 	private static int EstimateContinuationResolution(List<FrontierCandidate> frontier, int targetLength, int targetWidth, int fallbackResolution)
 	{
 		if (frontier == null || frontier.Count == 0)
@@ -519,6 +529,7 @@ public static class TerrainContinuationService
 		return Mathf.Clamp(suggested, 4, 1024);
 	}
 
+	// Собирает все подходящие меши, которые могут участвовать в continuation.
 	private static List<FrontierCandidate> CollectFrontierCandidates(Node3D root, ContinueDirection direction)
 	{
 		var outList = new List<FrontierCandidate>();
@@ -581,6 +592,7 @@ public static class TerrainContinuationService
 		return outList;
 	}
 
+	// Проверяет, что frontier не содержит разрывов между соседними кандидатами.
 	private static void ValidateFrontierContinuity(List<FrontierCandidate> frontier)
 	{
 		if (frontier.Count == 0)
@@ -594,6 +606,7 @@ public static class TerrainContinuationService
 		}
 	}
 
+	// Разбирает строковое направление continuation в enum.
 	private static bool TryParseDirection(string directionText, out ContinueDirection direction)
 	{
 		direction = ContinueDirection.XPlus;
@@ -608,6 +621,7 @@ public static class TerrainContinuationService
 		}
 	}
 
+	// Пытается угадать разрешение сетки по метаданным или размеру меша.
 	private static int GuessResolutionFromMesh(MeshInstance3D mesh)
 	{
 		if (mesh?.Mesh == null || mesh.Mesh.GetSurfaceCount() == 0)
@@ -654,6 +668,7 @@ public static class TerrainContinuationService
 		return best;
 	}
 
+	// Читает целочисленное значение из метаданных меша.
 	private static int GetMeshMetaInt(MeshInstance3D mesh, string key, int fallback)
 	{
 		if (mesh == null || !mesh.HasMeta(key)) return fallback;
@@ -663,6 +678,7 @@ public static class TerrainContinuationService
 		return fallback;
 	}
 
+	// Ищет ближайшую водную плоскость вокруг указанной точки.
 	private static float? FindNearestWaterY(Node3D root, Vector3 around)
 	{
 		MeshInstance3D best = null;
@@ -681,6 +697,7 @@ public static class TerrainContinuationService
 		return best?.Position.Y;
 	}
 
+	// Определяет, подходит ли меш для continuation как террейн-чанк.
 	private static bool IsTerrainContinuationCandidate(MeshInstance3D mesh)
 	{
 		if (mesh == null || mesh.Mesh == null)
@@ -700,6 +717,7 @@ public static class TerrainContinuationService
 		return false;
 	}
 
+	// Определяет, является ли меш кандидатом на water plane.
 	private static bool IsWaterCandidate(MeshInstance3D mesh)
 	{
 		if (mesh == null || mesh.Mesh == null)
@@ -711,6 +729,7 @@ public static class TerrainContinuationService
 		return mesh.Name.ToString().StartsWith("WaterPlane");
 	}
 
+	// Восстанавливает карту высот из UV-разметки меша continuation.
 	private static float[,] ExtractHeightsFromMeshByUv(MeshInstance3D meshInstance, int resolution, bool debugLogging)
 	{
 		if (meshInstance?.Mesh == null || meshInstance.Mesh.GetSurfaceCount() == 0)
@@ -813,6 +832,7 @@ public static class TerrainContinuationService
 		return heights;
 	}
 
+	// Собирает объединённый edge strip из всех frontier-чанков.
 	private static float[,] BuildCombinedEdgeStrip(ContinueContext ctx, int targetResolution, int rows, bool debugLogging)
 	{
 		if (targetResolution < 2)
@@ -846,6 +866,7 @@ public static class TerrainContinuationService
 		return strip;
 	}
 
+	// Находит сегмент frontier, соответствующий нужной координате вдоль шва.
 	private static FrontierSegment FindSegmentForAxis(List<FrontierSegment> segments, float axis)
 	{
 		FrontierSegment nearest = null;
@@ -869,6 +890,7 @@ public static class TerrainContinuationService
 		return null;
 	}
 
+	// Сэмплирует значение вдоль строки edge strip по дробному индексу.
 	private static float SampleEdgeRow(float[,] rowsData, int row, float idx)
 	{
 		int w = rowsData.GetLength(1);
@@ -880,6 +902,7 @@ public static class TerrainContinuationService
 		return Mathf.Lerp(rowsData[row, i0], rowsData[row, i1], t);
 	}
 
+	// Возвращает расстояние точки до шва continuation в пикселях сетки.
 	private static int GetDistanceFromSeam(ContinueDirection direction, int xi, int zi, int resolution)
 	{
 		return direction switch
@@ -891,6 +914,7 @@ public static class TerrainContinuationService
 		};
 	}
 
+	// Возвращает индекс координаты вдоль линии шва.
 	private static int GetAxisIndexAlongSeam(ContinueDirection direction, int xi, int zi, int resolution)
 	{
 		return direction switch
@@ -902,6 +926,7 @@ public static class TerrainContinuationService
 		};
 	}
 
+	// Строит несколько рядов по краю одного frontier-сегмента.
 	private static float[,] BuildEdgeRowsForSegment(float[,] sourceHeights, ContinueDirection direction, int rows)
 	{
 		int srcResX = sourceHeights.GetLength(0);
@@ -944,6 +969,7 @@ public static class TerrainContinuationService
 		return strip;
 	}
 
+	// Находит минимум и максимум в массиве высот.
 	private static void GetMinMax(float[,] heights, out float min, out float max)
 	{
 		min = float.MaxValue;
@@ -959,6 +985,7 @@ public static class TerrainContinuationService
 		}
 	}
 
+	// Ищет следующий индекс continuation-чанка среди дочерних мешей.
 	private static int GetNextChunkIndex(Node3D root)
 	{
 		int maxIndex = 0;

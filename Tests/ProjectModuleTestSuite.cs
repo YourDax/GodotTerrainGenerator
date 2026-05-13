@@ -6,6 +6,7 @@ using System.Globalization;
 
 public sealed class ProjectModuleTestSuite
 {
+	// Выполняет набор низкоуровневых модульных проверок ядра генерации.
 	public TestGroupResult Run()
 	{
 		var group = new TestGroupResult(

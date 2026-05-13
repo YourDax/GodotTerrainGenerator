@@ -4,6 +4,7 @@ using System;
 [Tool]
 public static class RealWorldTexturePainter
 {
+	// Накладывает текстуру на real-world heightmap, используя реальные значения высот.
 	public static void ApplyHeightTexture(
 		// Меш, на который накладываем текстуру
 		MeshInstance3D meshInstance,
@@ -243,6 +244,7 @@ public static class RealWorldTexturePainter
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам
 	// Используем tiling (повторение) для увеличения детализации
 	// Использует билинейную интерполяцию для плавных переходов и скрытия швов
+	// Смешивает две тайловые выборки, чтобы скрыть повторяемый рисунок текстуры.
 	private static Color GetSampleAntiTiling(Image img, int x, int z, int texRes, float tileScale)
 	{
 		// Основная выборка
@@ -258,6 +260,7 @@ public static class RealWorldTexturePainter
 		return c0.Lerp(c1, mix);
 	}
 
+	// Возвращает детерминированный шум в диапазоне 0..1 для смешивания выборок.
 	private static float Hash01(int x, int z)
 	{
 		// Простой стабильный hash -> [0..1]
@@ -267,6 +270,7 @@ public static class RealWorldTexturePainter
 		return Mathf.Clamp((v + 1f) * 0.5f, 0f, 1f);
 	}
 
+	// Берёт цвет из текстуры с повторением и билинейной интерполяцией.
 	private static Color GetSample(Image img, int x, int z, int texRes, float tileScale = 4.0f)
 	{
 		// Применяем tiling - текстура повторяется несколько раз

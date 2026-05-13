@@ -138,6 +138,7 @@ func _ready():
 	texture_button.pressed.connect(_on_texture_button_pressed)
 	file_dialog.file_selected.connect(_on_file_selected)
 	# Подключаем логику изменения режима
+	# Настраивает панель после её добавления в дерево сцены.
 	real_map_check.toggled.connect(_on_real_map_toggled)
 	# По умолчанию: случайная генерация включена
 	_show_random_mode()
@@ -186,10 +187,12 @@ func _ready():
 		call_deferred("_freeze_layout_sizes")
 
 func _apply_editor_manual_layout_mode() -> void:
+	# Включает ручную раскладку элементов для более плотного editor UI.
 	# Any Control added to group "terra_manual_layout" becomes independent from Container sizing in editor.
 	_toggle_top_level_by_group(self, true)
 
 func _toggle_top_level_by_group(node: Node, enabled: bool) -> void:
+	# Переключает top-level режим для группы дочерних узлов.
 	for child in node.get_children():
 		if child is Control:
 			var ctrl := child as Control
@@ -198,6 +201,7 @@ func _toggle_top_level_by_group(node: Node, enabled: bool) -> void:
 		_toggle_top_level_by_group(child, enabled)
 
 func _place_generate_button_top() -> void:
+	# Перемещает кнопку генерации в верхнюю часть панели.
 	var main_content := get_node_or_null("MainScroll/MainContent") as VBoxContainer
 	var generate_button := get_node_or_null("MainScroll/MainContent/SectionObjects/Body/GenerateButton") as Button
 	if main_content == null or generate_button == null:
@@ -207,6 +211,7 @@ func _place_generate_button_top() -> void:
 	main_content.move_child(generate_button, 0)
 
 func _place_export_button_bottom() -> void:
+	# Перемещает экспортную кнопку в нижний блок панели.
 	var main_content := get_node_or_null("MainScroll/MainContent") as VBoxContainer
 	var export_btn := get_node_or_null("MainScroll/MainContent/ExportBlenderButton") as Button
 	if main_content == null or export_btn == null:
@@ -216,6 +221,7 @@ func _place_export_button_bottom() -> void:
 	main_content.move_child(export_btn, main_content.get_child_count() - 1)
 
 func _place_tests_button_bottom() -> void:
+	# Перемещает кнопку запуска тестов в нижнюю часть панели.
 	var main_content := get_node_or_null("MainScroll/MainContent") as VBoxContainer
 	var tests_btn := get_node_or_null("MainScroll/MainContent/RunTestsButton") as Button
 	if main_content == null or tests_btn == null:
@@ -225,6 +231,7 @@ func _place_tests_button_bottom() -> void:
 	main_content.move_child(tests_btn, main_content.get_child_count() - 1)
 
 func _apply_visual_design() -> void:
+	# Применяет локальную стилизацию панели и её секций.
 	if not apply_auto_theme:
 		return
 
@@ -273,6 +280,7 @@ func _apply_visual_design() -> void:
 	_tune_row_layout(realmap_block)
 
 func _style_section(panel_path: String, title_path: String) -> void:
+	# Ставит единый стиль на раздел панели и заголовок.
 	var panel := get_node_or_null(panel_path) as PanelContainer
 	if panel:
 		if not panel.has_theme_stylebox_override("panel"):
@@ -298,6 +306,7 @@ func _style_section(panel_path: String, title_path: String) -> void:
 		_set_color_if_missing(title, "font_color", Color(0.80, 0.89, 1.0, 1.0))
 
 func _tune_row_layout(root: Node) -> void:
+	# Подгоняет размеры и отступы строк формы.
 	if root == null:
 		return
 	for child in root.get_children():
@@ -334,6 +343,7 @@ func _tune_row_layout(root: Node) -> void:
 		_tune_row_layout(child)
 
 func _set_color_if_missing(ctrl: Control, key: StringName, value: Color) -> void:
+	# Задаёт цветовое оформление только если тема ещё не переопределила его.
 	if ctrl == null:
 		return
 	if ctrl.has_theme_color_override(key):
@@ -341,6 +351,7 @@ func _set_color_if_missing(ctrl: Control, key: StringName, value: Color) -> void
 	ctrl.add_theme_color_override(key, value)
 
 func _set_font_size_if_missing(ctrl: Control, key: StringName, value: int) -> void:
+	# Устанавливает размер шрифта без перебивания внешней темы.
 	if ctrl == null:
 		return
 	if ctrl.has_theme_font_size_override(key):
@@ -348,6 +359,7 @@ func _set_font_size_if_missing(ctrl: Control, key: StringName, value: int) -> vo
 	ctrl.add_theme_font_size_override(key, value)
 
 func _freeze_layout_sizes() -> void:
+	# Фиксирует размеры элементов, чтобы layout не прыгал при обновлениях.
 	var root := get_node_or_null("MainScroll/MainContent")
 	if root == null:
 		root = self
@@ -382,6 +394,7 @@ func _freeze_node_sizes_recursive(node: Node) -> void:
 
 func _setup_coordinate_spinboxes():
 	# Настраиваем все поля координат для большей точности
+	# Создаёт и настраивает координатные поля ввода.
 	var coordinate_fields = [leftuplat_input, leftuplng_input, rightdownlat_input, rightdownlng_input]
 	
 	for field in coordinate_fields:
@@ -399,13 +412,16 @@ func _setup_coordinate_spinboxes():
 			field.max_value = 180.0
 
 func _on_texture_button_pressed():
+	# Открывает диалог выбора текстурного файла.
 	file_dialog.popup_centered()
 
 func _on_file_selected(path):
+	# Запоминает выбранный пользователем путь к texture resource.
 	texture_save_path = path
 	print("Путь для сохранения текстуры: ", path)
 
 func _on_real_map_toggled(pressed: bool):
+	# Переключает интерфейс между random и real-map режимами.
 	if pressed:
 		_show_realmap_mode()
 	else:
@@ -417,15 +433,18 @@ func _on_real_map_toggled(pressed: bool):
 		island_row.visible = not pressed
 
 func _show_random_mode():
+	# Показывает controls для процедурной генерации.
 	random_block.visible = true
 	realmap_block.visible = false
 
 
 func _show_realmap_mode():
+	# Показывает controls для генерации по реальным данным.
 	random_block.visible = false
 	realmap_block.visible = true
 
 func _setup_location_presets():
+	# Заполняет список готовых географических пресетов.
 	if not location_presets_button:
 		return
 	
@@ -441,6 +460,7 @@ func _setup_location_presets():
 		location_presets_button.item_selected.connect(_on_location_preset_selected)
 
 func _on_location_preset_selected(index: int):
+	# Подставляет координаты выбранного location preset.
 	if index == 0:  # "Выберите место..."
 		return
 	
@@ -457,6 +477,7 @@ func _on_location_preset_selected(index: int):
 		print("   Координаты: N=", coords[0], " W=", coords[1], " S=", coords[2], " E=", coords[3])
 
 func _setup_resolution_mode():
+	# Настраивает список режимов разрешения terrain.
 	if not resolution_mode_button:
 		return
 	
@@ -473,10 +494,12 @@ func _setup_resolution_mode():
 		resolution_mode_button.item_selected.connect(_on_resolution_mode_selected)
 
 func _on_resolution_mode_selected(index: int):
+	# Синхронизирует controls разрешения с выбранным режимом.
 	var mode_name = resolution_mode_button.get_item_text(index)
 	print("Выбран режим разрешения: ", mode_name)
 
 func _setup_realmap_controls():
+	# Собирает UI для real-map текстур и источников данных.
 	if not realmap_block:
 		return
 	realmap_water_level_spin = realmap_block.get_node_or_null("WaterLevelRealMap")
@@ -515,12 +538,15 @@ func _setup_realmap_controls():
 	realmap_object_spacing_spin = realmap_block.get_node_or_null("ObjectSpacingRealMap")
 
 func _on_realmap_texture_toggled(_pressed: bool) -> void:
+	# Переключает использование встроенных или пользовательских текстур.
 	_update_realmap_texture_rows_visibility()
 
 func _on_realmap_custom_paths_toggled(_pressed: bool) -> void:
+	# Показывает поля для собственных путей к текстурам real-map режима.
 	_update_realmap_texture_rows_visibility()
 
 func _update_realmap_texture_rows_visibility() -> void:
+	# Обновляет видимость строк выбора текстур в real-map секции.
 	var sand_row := realmap_block.get_node_or_null("RealMapTexturePaths/SandRow")
 	var grass_row := realmap_block.get_node_or_null("RealMapTexturePaths/GrassRow")
 	var rock_row := realmap_block.get_node_or_null("RealMapTexturePaths/RockRow")
@@ -533,21 +559,25 @@ func _update_realmap_texture_rows_visibility() -> void:
 		rock_row.visible = show_custom and realmap_tex_rock_check.button_pressed
 
 func _on_realmap_sand_browse_pressed() -> void:
+	# Открывает выбор файла для песчаной текстуры real-map режима.
 	_pending_realmap_texture_key = "sand"
 	if _realmap_texture_file_dialog:
 		_realmap_texture_file_dialog.popup_centered()
 
 func _on_realmap_grass_browse_pressed() -> void:
+	# Открывает выбор файла для травяной текстуры real-map режима.
 	_pending_realmap_texture_key = "grass"
 	if _realmap_texture_file_dialog:
 		_realmap_texture_file_dialog.popup_centered()
 
 func _on_realmap_rock_browse_pressed() -> void:
+	# Открывает выбор файла для каменной текстуры real-map режима.
 	_pending_realmap_texture_key = "rock"
 	if _realmap_texture_file_dialog:
 		_realmap_texture_file_dialog.popup_centered()
 
 func _on_realmap_texture_file_selected(path: String) -> void:
+	# Сохраняет выбранный путь в активное поле real-map текстуры.
 	match _pending_realmap_texture_key:
 		"sand":
 			if realmap_sand_path_edit:
@@ -561,6 +591,7 @@ func _on_realmap_texture_file_selected(path: String) -> void:
 	_pending_realmap_texture_key = ""
 
 func _setup_random_texture_controls() -> void:
+	# Собирает UI для текстур процедурного terrain.
 	if not random_block:
 		return
 
@@ -598,12 +629,15 @@ func _setup_random_texture_controls() -> void:
 	_update_random_texture_rows_visibility()
 
 func _on_random_texture_toggled(_pressed: bool) -> void:
+	# Включает или отключает использование встроенных random texture paths.
 	_update_random_texture_rows_visibility()
 
 func _on_random_custom_paths_toggled(_pressed: bool) -> void:
+	# Показывает поля для пользовательских путей текстур random режима.
 	_update_random_texture_rows_visibility()
 
 func _update_random_texture_rows_visibility() -> void:
+	# Обновляет видимость строк выбора текстур в random секции.
 	var sand_row := random_block.get_node_or_null("RandomTexturesSection/SandRow")
 	var grass_row := random_block.get_node_or_null("RandomTexturesSection/GrassRow")
 	var rock_row := random_block.get_node_or_null("RandomTexturesSection/RockRow")
@@ -616,21 +650,25 @@ func _update_random_texture_rows_visibility() -> void:
 		rock_row.visible = show_custom and random_tex_rock_check.button_pressed
 
 func _on_random_sand_browse_pressed() -> void:
+	# Открывает диалог выбора песчаной texture для random режима.
 	_pending_random_texture_key = "sand"
 	if _random_texture_file_dialog:
 		_random_texture_file_dialog.popup_centered()
 
 func _on_random_grass_browse_pressed() -> void:
+	# Открывает диалог выбора травяной texture для random режима.
 	_pending_random_texture_key = "grass"
 	if _random_texture_file_dialog:
 		_random_texture_file_dialog.popup_centered()
 
 func _on_random_rock_browse_pressed() -> void:
+	# Открывает диалог выбора каменной texture для random режима.
 	_pending_random_texture_key = "rock"
 	if _random_texture_file_dialog:
 		_random_texture_file_dialog.popup_centered()
 
 func _on_random_texture_file_selected(path: String) -> void:
+	# Сохраняет выбранный путь в активное поле random texture.
 	match _pending_random_texture_key:
 		"sand":
 			if random_sand_path_edit:
@@ -644,24 +682,29 @@ func _on_random_texture_file_selected(path: String) -> void:
 	_pending_random_texture_key = ""
 
 func _setup_smoothing_slider():
+	# Настраивает ползунок сглаживания heightmap.
 	if smoothing_slider:
 		smoothing_slider.value_changed.connect(_on_smoothing_changed)
 		_on_smoothing_changed(smoothing_slider.value)
 
 func _on_smoothing_changed(value: float):
+	# Запоминает новое значение сглаживания.
 	if smoothing_value_label:
 		smoothing_value_label.text = "%.2f" % value
 
 func _setup_slope_blend_slider():
+	# Настраивает ползунок смешивания slope-слоёв.
 	if slope_blend_slider:
 		slope_blend_slider.value_changed.connect(_on_slope_blend_changed)
 		_on_slope_blend_changed(slope_blend_slider.value)
 
 func _on_slope_blend_changed(value: float):
+	# Запоминает новое значение slope blend.
 	if slope_blend_value_label:
 		slope_blend_value_label.text = "%.2f" % value
 
 func _setup_texture_mode():
+	# Заполняет список режимов выбора terrain texture mode.
 	if texture_mode_selector:
 		# Очищаем список перед добавлением элементов (на случай, если они уже есть)
 		texture_mode_selector.clear()
@@ -674,9 +717,11 @@ func _setup_texture_mode():
 		texture_mode_selector.item_selected.connect(_on_texture_mode_selected)
 
 func _on_texture_mode_selected(index: int):
+	# Сохраняет выбранный режим текстурирования.
 	_update_texture_mode_ui()
 
 func _update_texture_mode_ui():
+	# Обновляет UI в зависимости от выбранного texture mode.
 	if texture_mode_selector and grass_rock_container and slope_blend_container:
 		# Показываем поле "Граница трава-камень" только для режима по высоте (0)
 		grass_rock_container.visible = (texture_mode_selector.selected == 0)
@@ -684,12 +729,14 @@ func _update_texture_mode_ui():
 		slope_blend_container.visible = (texture_mode_selector.selected == 1)
 
 func _setup_roads():
+	# Настраивает controls, связанные с дорогами.
 	if road_texture_button:
 		road_texture_button.pressed.connect(_on_road_texture_button_pressed)
 	if road_texture_file_dialog:
 		road_texture_file_dialog.file_selected.connect(_on_road_texture_file_selected)
 
 func _setup_export_controls() -> void:
+	# Собирает UI для выбора папки и запуска экспорта.
 	if export_button and not export_button.pressed.is_connected(_on_export_button_pressed):
 		export_button.pressed.connect(_on_export_button_pressed)
 	if export_folder_dialog:
@@ -704,6 +751,7 @@ func _setup_export_controls() -> void:
 		tests_result_dialog.dialog_text = ""
 
 func _on_run_tests_button_pressed() -> void:
+	# Запускает тесты и показывает результаты.
 	if tests_result_dialog == null:
 		push_error("Tests result dialog is missing")
 		return
@@ -721,13 +769,16 @@ func _on_run_tests_button_pressed() -> void:
 	tests_result_dialog.popup_centered()
 
 func _on_export_button_pressed() -> void:
+	# Открывает диалог для экспорта.
 	if export_folder_dialog:
 		export_folder_dialog.popup_centered_ratio(0.8)
 
 func _on_export_folder_selected(dir_path: String) -> void:
+	# Обрабатывает выбранную папку для экспорта.
 	emit_signal("export_blender_requested", dir_path)
 
 func _setup_continue_generation_controls() -> void:
+	# Настраивает controls для продолжения генерации.
 	if random_block == null:
 		return
 	continue_generation_check = random_block.get_node_or_null("ContinueGenerationRow/ContinueGenerationCheck")
@@ -739,27 +790,32 @@ func _setup_continue_generation_controls() -> void:
 	_update_continue_generation_ui()
 
 func _on_continue_generation_toggled(_on: bool) -> void:
+	# Обрабатывает переключение продолжения генерации.
 	_update_continue_generation_ui()
 	if continue_generation_check and continue_generation_check.button_pressed:
 		emit_signal("continue_settings_requested", _get_continue_direction())
 
 func _on_continue_direction_selected(_index: int) -> void:
+	# Обрабатывает выбор направления продолжения.
 	_update_continue_generation_ui()
 	if continue_generation_check and continue_generation_check.button_pressed:
 		emit_signal("continue_settings_requested", _get_continue_direction())
 
 func _get_continue_direction() -> String:
+	# Возвращает выбранное пользователем направление продолжения terrain.
 	if continue_direction_selector == null:
 		return "x+"
 	return continue_direction_selector.get_item_text(continue_direction_selector.selected)
 
 func _set_spinbox_editable(spin: SpinBox, editable: bool) -> void:
+	# Блокирует или разблокирует ввод в SpinBox.
 	if spin == null:
 		return
 	spin.editable = editable
 	spin.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
 
 func _update_continue_generation_ui() -> void:
+	# Синхронизирует поля размеров с выбранным направлением continuation.
 	var continuation_enabled := continue_generation_check != null and continue_generation_check.button_pressed
 	if continue_direction_selector:
 		continue_direction_selector.disabled = not continuation_enabled
@@ -779,6 +835,7 @@ func _update_continue_generation_ui() -> void:
 	_set_spinbox_editable(water_level_field, not continuation_enabled)
 
 func apply_continue_source_settings(data: Dictionary) -> void:
+	# Подставляет параметры source terrain в controls continuation.
 	if data == null or data.is_empty():
 		return
 
@@ -811,21 +868,25 @@ func apply_continue_source_settings(data: Dictionary) -> void:
 	_update_continue_generation_ui()
 
 func _on_road_texture_button_pressed():
+	# Открывает диалог выбора texture для roads.
 	if road_texture_file_dialog:
 		road_texture_file_dialog.popup_centered()
 
 func _on_road_texture_file_selected(path: String):
+	# Сохраняет путь к road texture в поле ввода.
 	if road_texture_path_edit:
 		road_texture_path_edit.text = path
 		print("Путь к текстуре дороги: ", path)
 
 func _addon_root_path() -> String:
+	# Определяет корень текущего addon по пути скрипта.
 	var script_res := get_script() as Script
 	if script_res == null:
 		return "res://addons/terragenerating"
 	return script_res.resource_path.get_base_dir()
 
 func _normalize_legacy_addon_path(path: String) -> String:
+	# Переводит старый путь addon в текущую установку проекта.
 	if path == "":
 		return path
 	const LEGACY_PREFIX := "res://addons/terragenerating"
@@ -834,6 +895,7 @@ func _normalize_legacy_addon_path(path: String) -> String:
 	return path
 
 func _normalize_texture_paths_for_current_addon() -> void:
+	# Приводит все сохранённые texture paths к актуальному addon root.
 	if road_texture_path_edit:
 		road_texture_path_edit.text = _normalize_legacy_addon_path(road_texture_path_edit.text)
 	if random_sand_path_edit:
@@ -850,6 +912,7 @@ func _normalize_texture_paths_for_current_addon() -> void:
 		realmap_rock_path_edit.text = _normalize_legacy_addon_path(realmap_rock_path_edit.text)
 
 func _setup_scatter_objects() -> void:
+	# Создаёт UI для категорий scatter-объектов.
 	if scatter_inner == null:
 		return
 	_scatter_file_dialog = FileDialog.new()
@@ -872,6 +935,7 @@ func _setup_scatter_objects() -> void:
 		_add_scatter_category_block(cat_key, title)
 
 func _add_scatter_category_block(cat_key: String, title: String) -> void:
+	# Добавляет отдельную категорию объектов со списком вариантов моделей.
 	var sep := HSeparator.new()
 	scatter_inner.add_child(sep)
 	var row0 := HBoxContainer.new()
@@ -921,6 +985,7 @@ func _add_scatter_category_block(cat_key: String, title: String) -> void:
 	_rebuild_scatter_rows(cat_key)
 
 func _rebuild_scatter_rows(cat_key: String) -> void:
+	# Пересобирает строки выбора моделей, если изменилось число вариантов.
 	var ui: Dictionary = _scatter_ui.get(cat_key, {})
 	if ui.is_empty():
 		return
@@ -963,6 +1028,7 @@ func _rebuild_scatter_rows(cat_key: String) -> void:
 		ui["rows"].append({"line": le, "button": btn})
 
 func _on_scatter_file_selected(path: String) -> void:
+	# Подставляет выбранный файл модели в активную строку scatter-настроек.
 	var ui: Dictionary = _scatter_ui.get(_pending_scatter_cat, {})
 	if ui.is_empty():
 		return
@@ -974,6 +1040,7 @@ func _on_scatter_file_selected(path: String) -> void:
 	le.text = path
 
 func _get_scatter_default_paths(cat_key: String) -> Array[String]:
+	# Возвращает встроенные пути к моделям для конкретной категории.
 	var out: Array[String] = []
 	if not SCATTER_DEFAULT_RELATIVE_PATHS.has(cat_key):
 		return out
@@ -986,6 +1053,7 @@ func _get_scatter_default_paths(cat_key: String) -> Array[String]:
 	return out
 
 func _build_scatter_settings() -> Dictionary:
+	# Собирает итоговый словарь настроек распределения объектов.
 	var out := {}
 	for item in SCATTER_CATEGORIES:
 		var cat_key: String = item[0]
@@ -1016,6 +1084,7 @@ func _build_scatter_settings() -> Dictionary:
 	return out
 
 func _on_generate_button_pressed() -> void:
+	# Собирает все поля формы в config и передаёт его в сигнал генерации.
 	var leftuplat := float(leftuplat_input.value)
 	var leftuplng := float(leftuplng_input.value)
 	var rightdownlat  := float(rightdownlat_input.value)

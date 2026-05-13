@@ -1,5 +1,6 @@
 public sealed class TestOperationResult
 {
+	// Хранит результат одной проверочной операции внутри тестового блока.
 	public TestOperationResult(string name, string whatIsChecked, string expectedResult, string actualResult, bool passed, long durationMs, string errorMessage = "")
 	{
 		Name = name;

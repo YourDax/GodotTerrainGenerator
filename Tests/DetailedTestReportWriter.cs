@@ -2,8 +2,10 @@ using Godot;
 using System;
 using System.Text;
 
+// Формирует подробный текстовый отчет по результатам тестового прогона.
 public static class DetailedTestReportWriter
 {
+	// Сериализует результат тестов в человекочитаемый текстовый файл.
 	public static void Write(string reportPath, TestRunOutcome outcome, DateTime startedAt, DateTime finishedAt)
 	{
 		var builder = new StringBuilder();

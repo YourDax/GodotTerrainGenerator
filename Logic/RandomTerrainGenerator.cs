@@ -5,6 +5,7 @@ using System;
 public partial class RandomTerrainGenerator : Node
 {
 	// Метод создаёт меш рельефа с использованием шума
+	// Генерирует процедурный меш террейна на основе нескольких слоёв шума.
 	public Mesh GenerateMesh(
 		int length, int width,
 		float minHeight, float maxHeight,
@@ -118,6 +119,7 @@ public partial class RandomTerrainGenerator : Node
 	}
 
 	// Создание плоскости воды как MeshInstance3D
+	// Создаёт отдельный MeshInstance3D для плоскости воды на нужной высоте.
 	public MeshInstance3D GenerateWaterPlane(int length, int width, float waterHeight)
 	{
 		// Создаём меш воды (простая плоскость)

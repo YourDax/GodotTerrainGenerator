@@ -6,17 +6,20 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
+// Клиент для пакетного запроса высот из OpenTopoData.
 public sealed class OpenTopoDataClient
 {
 	private readonly System.Net.Http.HttpClient _http;
 	private readonly string _apiBase;
 
+	// Создаёт клиент для OpenTopoData на указанной базе API.
 	public OpenTopoDataClient(System.Net.Http.HttpClient http, string apiBase = "https://api.opentopodata.org/v1/srtm90m")
 	{
 		_http = http ?? throw new ArgumentNullException(nameof(http));
 		_apiBase = apiBase.TrimEnd('/');
 	}
 
+	// Запрашивает сетку высот и раскладывает ответ обратно в квадратный массив.
 	public async Task<float[,]> FetchHeightsGridAsync(
 		float north,
 		float west,

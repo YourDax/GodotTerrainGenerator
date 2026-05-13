@@ -43,6 +43,7 @@ public static class RealMapTerrainGenerator
 	public delegate void ProgressCallback(float progress, string status);
 
 	// Основной метод генерации рельефа
+	// Генерирует terrain на основе географического bbox, внешних API и настроек текстурирования.
 	public static async Task<Node3D> Generate(
 		Node3D parent,
 		float leftUpLat,
@@ -101,7 +102,7 @@ public static class RealMapTerrainGenerator
 		Stopwatch meshBuildStopwatch = Stopwatch.StartNew();
 		Mesh mesh = BuildCenteredMesh(heights, north, south, west, east, out meshMaxSizeUnits, out meta);
 		meshBuildStopwatch.Stop();
-		GD.Print($"⏱️ Генерация real-map меша завершена за {meshBuildStopwatch.Elapsed.TotalMilliseconds:F0} мс ({meshBuildStopwatch.Elapsed.TotalSeconds:F2} с)");
+		GD.Print($"Генерация real-map меша завершена за {meshBuildStopwatch.Elapsed.TotalMilliseconds:F0} мс ({meshBuildStopwatch.Elapsed.TotalSeconds:F2} с)");
 
 		// Проверка валидности меша
 		if (mesh == null || mesh.GetSurfaceCount() == 0)
@@ -212,11 +213,13 @@ public static class RealMapTerrainGenerator
 		return meshInstance;
 	}
 
+	// Подбирает разрешение сетки для real-map режима.
 	private static int ResolveResolution(float north, float south, float west, float east, int resolutionMode)
 	{
 		return TerrainMath.ResolveResolution(north, south, west, east, resolutionMode);
 	}
 
+	// Подбирает фактические пути текстур с учётом пользовательских и дефолтных настроек.
 	private static void ResolveTexturePaths(
 		bool useSandTexture,
 		bool useGrassTexture,
@@ -266,6 +269,7 @@ public static class RealMapTerrainGenerator
 		}
 	}
 
+	// Запрашивает высотную сетку у OpenTopoData и нормализует результат.
 	private static async Task<float[,]> RequestHeightsFromOpenTopo(
 		float north,
 		float south,
@@ -292,6 +296,7 @@ public static class RealMapTerrainGenerator
 		);
 	}
 
+	// Метаданные меша real-map для последующей стыковки, экспорта и continuation.
 	private readonly record struct RealMapMeshMeta(
 		float North,
 		float South,
@@ -309,8 +314,10 @@ public static class RealMapTerrainGenerator
 		float MaxVy
 	);
 
+	// Описание размещённого объекта на плоскости XZ для фильтрации пересечений.
 	private readonly record struct PlacedCircle(Vector2 Pos, float Radius);
 
+	// Размещает деревья и воду по данным OSM внутри real-map сцены.
 	private static void PlaceTreesFromOsm(
 		MeshInstance3D terrainMesh,
 		RealMapMeshMeta meta,
@@ -453,6 +460,7 @@ public static class RealMapTerrainGenerator
 		}
 	}
 
+	// Оценивает радиус footprint модели для размещения объектов без пересечений.
 	private static float EstimateFootprintRadius(Node3D root)
 	{
 		bool has = false;
@@ -466,6 +474,7 @@ public static class RealMapTerrainGenerator
 		return Mathf.Max(0.1f, Mathf.Sqrt(dx * dx + dz * dz));
 	}
 
+	// Рекурсивно собирает AABB всех мешей в поддереве.
 	private static void CollectMeshAabbs(Node3D node, Transform3D rootToNode, ref bool has, ref Aabb merged)
 	{
 		if (node is MeshInstance3D mi && mi.Mesh != null)
@@ -491,6 +500,7 @@ public static class RealMapTerrainGenerator
 		}
 	}
 
+	// Переводит AABB из локального пространства в другое пространство.
 	private static Aabb TransformAabb(Transform3D transform, Aabb aabb)
 	{
 		Vector3 p0 = transform * aabb.Position;
@@ -518,6 +528,7 @@ public static class RealMapTerrainGenerator
 	// Вода теперь добавляется большим плэйном, но только если OSM нашёл воду.
 
 	// Заполнение пропущенных значений высот
+	// Заполняет пропущенные значения в высотной сетке соседями.
 	private static void FillMissingHeights(float[,] data)
 	{
 		int resX = data.GetLength(0);
@@ -568,6 +579,7 @@ public static class RealMapTerrainGenerator
 	}
 
 	// Построение меша на основе матрицы высот
+	// Строит центрированный mesh для real-map сцены и возвращает его метаданные.
 	private static Mesh BuildCenteredMesh(float[,] heights, float north, float south, float west, float east, out float sizeUnits, out RealMapMeshMeta meta)
 	{
 		int resX = heights.GetLength(0);
@@ -703,6 +715,7 @@ public static class RealMapTerrainGenerator
 	}
 
 	// Нормализация значений в диапазон
+	// Нормализует значения высот в нужный диапазон.
 	private static void NormalizeToRange(float[,] h, float minTarget, float maxTarget)
 	{
 		GetMinMax(h, out float min, out float max);
@@ -726,6 +739,7 @@ public static class RealMapTerrainGenerator
 	}
 
 	// Получение min/max
+	// Находит минимум и максимум высот в массиве.
 	private static void GetMinMax(float[,] h, out float min, out float max)
 	{
 		min = float.MaxValue;
@@ -752,6 +766,7 @@ public static class RealMapTerrainGenerator
 	}
 
 	// Логирование статистики
+	// Печатает краткую статистику по высотной сетке для диагностики.
 	private static void PrintStats(string label, float[,] h)
 	{
 		GetMinMax(h, out float min, out float max);
