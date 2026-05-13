@@ -41,6 +41,8 @@ signal export_blender_requested(target_dir)
 @onready var realmap_texture_file_dialog = $"MainScroll/MainContent/SectionTextures/Body/RealMapTextureFileDialog"
 @onready var export_button = $"MainScroll/MainContent/ExportBlenderButton"
 @onready var export_folder_dialog = $"MainScroll/MainContent/ExportFolderDialog"
+@onready var run_tests_button = $"MainScroll/MainContent/RunTestsButton"
+@onready var tests_result_dialog = $"MainScroll/MainContent/TestsResultDialog"
 
 var continue_generation_check: CheckBox = null
 var continue_direction_selector: OptionButton = null
@@ -176,6 +178,7 @@ func _ready():
 		island_row0.visible = not real_map_check.button_pressed
 	_place_generate_button_top()
 	_place_export_button_bottom()
+	_place_tests_button_bottom()
 	_apply_visual_design()
 	if Engine.is_editor_hint() and enable_editor_manual_layout_mode:
 		_apply_editor_manual_layout_mode()
@@ -211,6 +214,15 @@ func _place_export_button_bottom() -> void:
 	if export_btn.get_parent() != main_content:
 		export_btn.reparent(main_content)
 	main_content.move_child(export_btn, main_content.get_child_count() - 1)
+
+func _place_tests_button_bottom() -> void:
+	var main_content := get_node_or_null("MainScroll/MainContent") as VBoxContainer
+	var tests_btn := get_node_or_null("MainScroll/MainContent/RunTestsButton") as Button
+	if main_content == null or tests_btn == null:
+		return
+	if tests_btn.get_parent() != main_content:
+		tests_btn.reparent(main_content)
+	main_content.move_child(tests_btn, main_content.get_child_count() - 1)
 
 func _apply_visual_design() -> void:
 	if not apply_auto_theme:
@@ -251,6 +263,11 @@ func _apply_visual_design() -> void:
 	if export_btn:
 		export_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		export_btn.custom_minimum_size = Vector2(0, 40)
+
+	var run_tests_btn: Button = get_node_or_null("MainScroll/MainContent/RunTestsButton") as Button
+	if run_tests_btn:
+		run_tests_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		run_tests_btn.custom_minimum_size = Vector2(0, 40)
 
 	_tune_row_layout(random_block)
 	_tune_row_layout(realmap_block)
@@ -680,6 +697,28 @@ func _setup_export_controls() -> void:
 		export_folder_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 		if not export_folder_dialog.dir_selected.is_connected(_on_export_folder_selected):
 			export_folder_dialog.dir_selected.connect(_on_export_folder_selected)
+	if run_tests_button and not run_tests_button.pressed.is_connected(_on_run_tests_button_pressed):
+		run_tests_button.pressed.connect(_on_run_tests_button_pressed)
+	if tests_result_dialog:
+		tests_result_dialog.title = "Результаты тестов"
+		tests_result_dialog.dialog_text = ""
+
+func _on_run_tests_button_pressed() -> void:
+	if tests_result_dialog == null:
+		push_error("Tests result dialog is missing")
+		return
+	var runner_script = load("res://addons/terragenerating/Tests/test_runner.gd")
+	if runner_script == null:
+		tests_result_dialog.dialog_text = "Не удалось найти скрипт запуска тестов."
+		tests_result_dialog.popup_centered()
+		return
+	var runner = runner_script.new()
+	var ok := bool(await runner.run_all_tests())
+	if ok:
+		tests_result_dialog.dialog_text = "Тесты пройдены успешно."
+	else:
+		tests_result_dialog.dialog_text = "Тесты завершились с ошибками."
+	tests_result_dialog.popup_centered()
 
 func _on_export_button_pressed() -> void:
 	if export_folder_dialog:

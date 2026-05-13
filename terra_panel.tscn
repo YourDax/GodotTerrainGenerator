@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3 uid="uid://b8b4r624p1cj8"]
 
-[ext_resource type="Script" path="terra_panel.gd" id="1_ker3i"]
+[ext_resource type="Script" uid="uid://beoun4ig67evt" path="res://addons/terragenerating/terra_panel.gd" id="1_ker3i"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ker3i"]
 content_margin_left = 10.0
@@ -118,17 +118,13 @@ theme_override_colors/font_color = Color(0.05, 0.07, 0.1, 1)
 theme_override_font_sizes/font_size = 15
 text = "✨ Создать ландшафт"
 
-[node name="ExportBlenderButton" type="Button" parent="MainScroll/MainContent"]
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 14
-text = "📦 Экспорт в Blender (glTF пакет)"
-
 [node name="ExportFolderDialog" type="FileDialog" parent="MainScroll/MainContent"]
-title = "Выберите папку для экспорта в Blender"
+title = "Open a Directory"
 file_mode = 2
 access = 2
+
+[node name="TestsResultDialog" type="AcceptDialog" parent="MainScroll/MainContent"]
+title = "Результаты тестов"
 
 [node name="SectionMesh" type="PanelContainer" parent="MainScroll/MainContent"]
 layout_mode = 2
@@ -875,5 +871,21 @@ size_flags_vertical = 3
 [node name="ScatterInner" type="VBoxContainer" parent="MainScroll/MainContent/SectionObjects/Body/ScatterSection/ScatterScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="ExportBlenderButton" type="Button" parent="MainScroll/MainContent"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 14
+text = "📦 Экспорт в Blender (glTF пакет)"
+
+[node name="RunTestsButton" type="Button" parent="MainScroll/MainContent"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 14
+text = "🧪 Провести тесты"
+
+[node name="Node3D" type="Node3D" parent="."]
 
 [connection signal="pressed" from="MainScroll/MainContent/GenerateButton" to="." method="_on_generate_button_pressed"]

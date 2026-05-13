@@ -247,17 +247,13 @@
 
 Файлы тестов:
 
-- `Tests/TerrainMathTests.cs`
+- `Tests/ProjectTestingSuite.cs`
 - `Tests/test_runner.gd`
 
 Запуск из редактора Godot:
 
-```gdscript
-var runner = preload("res://addons/terragenerating/Tests/test_runner.gd").new()
-add_child(runner)
-runner.run_all_tests()
-```
+Нажмите кнопку `🧪 Провести тесты` в самом низу панели плагина.
 
-Ожидаемый результат в Output:
+Ожидаемый результат:
 
-`[Tests] TerrainMathTests: all tests passed`
+появится окно с сообщением `Тесты пройдены успешно.` и будет создан подробный отчет в `Tests/test_report.txt`.

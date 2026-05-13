@@ -41,7 +41,8 @@ public static class TerrainTexturePainter
 		// Путь к текстуре дороги
 		string roadPath = null,
 		Action<float, string> progressCallback = null,
-		Func<bool> cancelRequested = null
+		Func<bool> cancelRequested = null,
+		bool allowYield = true
 	)
 	{
 		if (cancelRequested != null && cancelRequested())
@@ -234,8 +235,8 @@ public static class TerrainTexturePainter
 			// Если размеры не совпадают, это проблема
 			if (maskWidth != texRes || maskHeight != texRes)
 			{
-				GD.PrintErr($"❌ КРИТИЧЕСКАЯ ОШИБКА: Размер маски дорог ({maskWidth}x{maskHeight}) не совпадает с разрешением текстуры ({texRes}x{texRes})!");
-				GD.PrintErr("❌ Дороги не будут отображаться корректно!");
+				GD.Print($"⚠️ Маска дорог {maskWidth}x{maskHeight} не совпадает с {texRes}x{texRes}. Будет выполнен ресэмплинг.");
+				roadMask = ResampleRoadMask(roadMask, texRes, texRes);
 			}
 			
 			if (VerboseTextureLogs)
@@ -475,9 +476,12 @@ public static class TerrainTexturePainter
 			{
 				float textureProgress = 52.0f + (float)(z + 1) / texRes * 24.0f;
 				progressCallback?.Invoke(textureProgress, "Применение текстур...");
-				SceneTree tree = meshInstance.GetTree();
-				if (tree != null)
-					await meshInstance.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+				if (allowYield && meshInstance.IsInsideTree())
+				{
+					SceneTree tree = meshInstance.GetTree();
+					if (tree != null)
+						await meshInstance.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+				}
 			}
 		}
 
@@ -607,6 +611,29 @@ public static class TerrainTexturePainter
 		return Mathf.Lerp(h0, h1, fz);
 	}
 
+	private static float[,] ResampleRoadMask(float[,] source, int targetWidth, int targetHeight)
+	{
+		int srcWidth = source.GetLength(0);
+		int srcHeight = source.GetLength(1);
+		var result = new float[targetWidth, targetHeight];
+		if (srcWidth == 0 || srcHeight == 0)
+			return result;
+		for (int z = 0; z < targetHeight; z++)
+		{
+			float v = targetHeight == 1 ? 0f : (float)z / (targetHeight - 1);
+			int srcZ = (int)Mathf.Round(v * (srcHeight - 1));
+			srcZ = Mathf.Clamp(srcZ, 0, srcHeight - 1);
+			for (int x = 0; x < targetWidth; x++)
+			{
+				float u = targetWidth == 1 ? 0f : (float)x / (targetWidth - 1);
+				int srcX = (int)Mathf.Round(u * (srcWidth - 1));
+				srcX = Mathf.Clamp(srcX, 0, srcWidth - 1);
+				result[x, z] = source[srcX, srcZ];
+			}
+		}
+		return result;
+	}
+
 	private static Image LoadImageCached(string path, string textureLabel)
 	{
 		if (string.IsNullOrEmpty(path))
@@ -618,10 +645,32 @@ public static class TerrainTexturePainter
 		if (ImageCache.TryGetValue(path, out Image cached) && cached != null && cached.GetWidth() > 0)
 			return cached;
 
-		Image img = new Image();
-		if (img.Load(path) != Error.Ok)
+		Image img = null;
+		try
 		{
-			GD.PrintErr($"Не удалось загрузить текстуру {textureLabel} по пути: {path}");
+			// Use ResourceLoader to load as Texture2D and extract Image to avoid export warnings
+			if (ResourceLoader.Exists(path, "Texture2D"))
+			{
+				var texture = ResourceLoader.Load<Texture2D>(path);
+				if (texture != null && texture.GetImage() != null)
+				{
+					img = texture.GetImage();
+				}
+			}
+			// Fallback: try loading directly from file path if ResourceLoader doesn't recognize it
+			if (img == null)
+			{
+				img = new Image();
+				if (img.Load(path) != Error.Ok)
+				{
+					GD.PrintErr($"Не удалось загрузить текстуру {textureLabel} по пути: {path}");
+					return null;
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			GD.PrintErr($"Ошибка при загрузке текстуры {textureLabel}: {ex.Message}");
 			return null;
 		}
 

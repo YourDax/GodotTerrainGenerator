@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 // Класс для генерации реального рельефа по данным API OpenTopoData
@@ -97,7 +98,10 @@ public static class RealMapTerrainGenerator
 		// Строим меш на основе высот и получаем размер меша
 		float meshMaxSizeUnits;
 		RealMapMeshMeta meta;
+		Stopwatch meshBuildStopwatch = Stopwatch.StartNew();
 		Mesh mesh = BuildCenteredMesh(heights, north, south, west, east, out meshMaxSizeUnits, out meta);
+		meshBuildStopwatch.Stop();
+		GD.Print($"⏱️ Генерация real-map меша завершена за {meshBuildStopwatch.Elapsed.TotalMilliseconds:F0} мс ({meshBuildStopwatch.Elapsed.TotalSeconds:F2} с)");
 
 		// Проверка валидности меша
 		if (mesh == null || mesh.GetSurfaceCount() == 0)

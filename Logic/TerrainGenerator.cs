@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 [Tool]
@@ -104,6 +105,7 @@ public partial class TerrainGenerator : Node3D
 	)
 	{
 		_cancelRequested = false;
+		Stopwatch fullGenerationStopwatch = Stopwatch.StartNew();
 		EmitProgressSignal(2.0f, "Подготовка генерации...");
 		GD.Print("═══════════════════════════════════════");
 		GD.Print("C# Generate() вызван из GDScript!");
@@ -124,7 +126,8 @@ public partial class TerrainGenerator : Node3D
 				realMapSandTexturePath,
 				realMapGrassTexturePath,
 				realMapRockTexturePath,
-				realMapObjectSpacingMultiplier
+				realMapObjectSpacingMultiplier,
+				fullGenerationStopwatch
 			);
 			return;
 		}
@@ -152,7 +155,8 @@ public partial class TerrainGenerator : Node3D
 				generateIsland,
 				scatterSettings,
 				continueGeneration,
-				continueDirection
+				continueDirection,
+				fullGenerationStopwatch
 			);
 		}
 	}
@@ -180,6 +184,17 @@ public partial class TerrainGenerator : Node3D
 		return true;
 	}
 
+	private static void LogFullGenerationDuration(Stopwatch stopwatch, string mode, string outcome)
+	{
+		if (stopwatch == null)
+			return;
+
+		if (stopwatch.IsRunning)
+			stopwatch.Stop();
+
+		GD.Print($"⏱️ Полный цикл генерации ({mode}) {outcome}: {stopwatch.Elapsed.TotalMilliseconds:F0} мс ({stopwatch.Elapsed.TotalSeconds:F2} с)");
+	}
+
 	private async Task GenerateRandomTerrainAsync(
 		int length, int width,
 		float minHeight, float maxHeight,
@@ -201,82 +216,97 @@ public partial class TerrainGenerator : Node3D
 		bool generateIsland,
 		Godot.Collections.Dictionary scatterSettings,
 		bool continueGeneration,
-		string continueDirection
+		string continueDirection,
+		Stopwatch fullGenerationStopwatch
 	)
 	{
-		GD.Print("🚀 GenerateRandomTerrainAsync начат");
-
-		TerrainContinuationService.ContinueContext continuation = null;
-		if (IsGenerationCanceled()) return;
-		if (continueGeneration)
+		string generationOutcome = "успешно завершен";
+		try
 		{
-			try
+			GD.Print("🚀 GenerateRandomTerrainAsync начат");
+
+			TerrainContinuationService.ContinueContext continuation = null;
+			if (IsGenerationCanceled())
 			{
-				continuation = TerrainContinuationService.BuildContinueContext(this, continueDirection, ContinuationDebugLogging);
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"❌ Ошибка продолжения генерации: {ex.Message}");
+				generationOutcome = "остановлен пользователем";
 				return;
 			}
-			if (continuation == null)
+			if (continueGeneration)
 			{
-				GD.PrintErr("❌ Не удалось продолжить генерацию: исходный мэш не найден или невалиден.");
+				try
+				{
+					continuation = TerrainContinuationService.BuildContinueContext(this, continueDirection, ContinuationDebugLogging);
+				}
+				catch (Exception ex)
+				{
+					generationOutcome = "завершился с ошибкой";
+					GD.PrintErr($"❌ Ошибка продолжения генерации: {ex.Message}");
+					return;
+				}
+				if (continuation == null)
+				{
+					generationOutcome = "завершился с ошибкой";
+					GD.PrintErr("❌ Не удалось продолжить генерацию: исходный мэш не найден или невалиден.");
+					return;
+				}
+
+				minHeight = continuation.SourceMinHeight;
+				maxHeight = continuation.SourceMaxHeight;
+
+				if (continuation.Direction == TerrainContinuationService.ContinueDirection.XPlus || continuation.Direction == TerrainContinuationService.ContinueDirection.XMinus)
+				{
+					width = continuation.SourceWidth;
+				}
+				else
+				{
+					length = continuation.SourceLength;
+				}
+
+				int oldResolution = resolution;
+				resolution = Mathf.Max(resolution, continuation.SuggestedResolution);
+				if (ContinuationDebugLogging && resolution != oldResolution)
+				{
+					GD.Print($"📏 CONT resolution adjusted: requested={oldResolution}, suggested={continuation.SuggestedResolution}, final={resolution}");
+				}
+
+				if (continuation.SourceWaterY.HasValue)
+				{
+					float range = Mathf.Max(0.0001f, maxHeight - minHeight);
+					waterLevel = Mathf.Clamp(((continuation.SourceWaterY.Value - minHeight) / range) + 0.5f, 0.0f, 1.0f);
+				}
+			}
+		
+			// Обновляем прогресс
+			EmitProgressSignal(10.0f, "Генерация меша...");
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			if (IsGenerationCanceled())
+			{
+				generationOutcome = "остановлен пользователем";
 				return;
 			}
-
-			minHeight = continuation.SourceMinHeight;
-			maxHeight = continuation.SourceMaxHeight;
-
-			if (continuation.Direction == TerrainContinuationService.ContinueDirection.XPlus || continuation.Direction == TerrainContinuationService.ContinueDirection.XMinus)
-			{
-				width = continuation.SourceWidth;
-			}
-			else
-			{
-				length = continuation.SourceLength;
-			}
-
-			int oldResolution = resolution;
-			resolution = Mathf.Max(resolution, continuation.SuggestedResolution);
-			if (ContinuationDebugLogging && resolution != oldResolution)
-			{
-				GD.Print($"📏 CONT resolution adjusted: requested={oldResolution}, suggested={continuation.SuggestedResolution}, final={resolution}");
-			}
-
-			if (continuation.SourceWaterY.HasValue)
-			{
-				float range = Mathf.Max(0.0001f, maxHeight - minHeight);
-				waterLevel = Mathf.Clamp(((continuation.SourceWaterY.Value - minHeight) / range) + 0.5f, 0.0f, 1.0f);
-			}
-		}
 		
-		// Обновляем прогресс
-		EmitProgressSignal(10.0f, "Генерация меша...");
-		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-		if (IsGenerationCanceled()) return;
-		
-		GD.Print("📦 Создаю RandomTerrainGenerator...");
-		var random = new RandomTerrainGenerator();
+			GD.Print("📦 Создаю RandomTerrainGenerator...");
+			var random = new RandomTerrainGenerator();
 
-		float yOffset = (maxHeight - minHeight) * 0.5f;
-		Vector3 plannedPosition = continuation == null
-			? new Vector3(0f, yOffset, 0f)
-			: TerrainContinuationService.ComputeContinuationPosition(continuation, length, width, yOffset);
+			float yOffset = (maxHeight - minHeight) * 0.5f;
+			Vector3 plannedPosition = continuation == null
+				? new Vector3(0f, yOffset, 0f)
+				: TerrainContinuationService.ComputeContinuationPosition(continuation, length, width, yOffset);
 
-		int baseSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedBase, 10000);
-		int hillSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedHill, 11000);
-		int detailSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedDetail, 12000);
-		int coastSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedCoast, 13000);
+			int baseSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedBase, 10000);
+			int hillSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedHill, 11000);
+			int detailSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedDetail, 12000);
+			int coastSeed = GetOrCreateGeneratorSeed(MetaNoiseSeedCoast, 13000);
 
-		if (ContinuationDebugLogging)
-		{
-			GD.Print($"🧪 CONT noise seeds: base={baseSeed} hill={hillSeed} detail={detailSeed} coast={coastSeed}");
-			GD.Print($"🧪 CONT noise sample offset: x={plannedPosition.X:F2} z={plannedPosition.Z:F2}");
-		}
+			if (ContinuationDebugLogging)
+			{
+				GD.Print($"🧪 CONT noise seeds: base={baseSeed} hill={hillSeed} detail={detailSeed} coast={coastSeed}");
+				GD.Print($"🧪 CONT noise sample offset: x={plannedPosition.X:F2} z={plannedPosition.Z:F2}");
+			}
 
-		GD.Print($"🔨 Генерирую меш: length={length}, width={width}, resolution={resolution}");
-		Mesh mesh = random.GenerateMesh(
+			GD.Print($"🔨 Генерирую меш: length={length}, width={width}, resolution={resolution}");
+			Stopwatch meshBuildStopwatch = Stopwatch.StartNew();
+			Mesh mesh = random.GenerateMesh(
 			length, width,
 			minHeight, maxHeight,
 			resolution,
@@ -287,85 +317,98 @@ public partial class TerrainGenerator : Node3D
 			hillSeed,
 			detailSeed,
 			coastSeed,
-			plannedPosition.X,
-			plannedPosition.Z
-		);
-		if (IsGenerationCanceled()) return;
+				plannedPosition.X,
+				plannedPosition.Z
+			);
+			meshBuildStopwatch.Stop();
+			GD.Print($"⏱️ Генерация меша завершена за {meshBuildStopwatch.Elapsed.TotalMilliseconds:F0} мс ({meshBuildStopwatch.Elapsed.TotalSeconds:F2} с)");
+			if (IsGenerationCanceled())
+			{
+				generationOutcome = "остановлен пользователем";
+				return;
+			}
 
-		if (continuation != null)
-		{
-			TerrainContinuationService.ApplyEdgeConstraintToMesh(mesh, resolution, continuation, ContinuationDebugLogging);
-		}
+			if (continuation != null)
+			{
+				TerrainContinuationService.ApplyEdgeConstraintToMesh(mesh, resolution, continuation, ContinuationDebugLogging);
+			}
 		
-		if (mesh == null)
-		{
-			GD.PrintErr("❌ Меш не был создан!");
-			return;
-		}
-		if (mesh.GetSurfaceCount() == 0)
-		{
-			GD.PrintErr("❌ Меш не содержит поверхностей после генерации/стыковки!");
-			return;
-		}
+			if (mesh == null)
+			{
+				generationOutcome = "завершился с ошибкой";
+				GD.PrintErr("❌ Меш не был создан!");
+				return;
+			}
+			if (mesh.GetSurfaceCount() == 0)
+			{
+				generationOutcome = "завершился с ошибкой";
+				GD.PrintErr("❌ Меш не содержит поверхностей после генерации/стыковки!");
+				return;
+			}
 		
-		GD.Print($"✅ Меш создан, поверхностей: {mesh.GetSurfaceCount()}");
+			GD.Print($"✅ Меш создан, поверхностей: {mesh.GetSurfaceCount()}");
 
-		EmitProgressSignal(30.0f, "Создание экземпляра меша...");
-		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-		if (IsGenerationCanceled()) return;
-
-		var meshInstance = new MeshInstance3D
-		{
-			Mesh = mesh,
-			Name = "GeneratedMesh"
-		};
-
-		meshInstance.RotateX(Mathf.Pi);
-		int chunkIndex = continuation?.NextChunkIndex ?? GetNextChunkIndex();
-		meshInstance.Position = plannedPosition;
-		meshInstance.Name = continuation == null
-			? BuildInitialMeshName(chunkIndex)
-			: BuildContinuedMeshName(continuation.DirectionText, chunkIndex);
-		meshInstance.SetMeta("terrain_length", length);
-		meshInstance.SetMeta("terrain_width", width);
-		meshInstance.SetMeta("terrain_resolution", resolution);
-		meshInstance.SetMeta("terrain_min_height", minHeight);
-		meshInstance.SetMeta("terrain_max_height", maxHeight);
-		meshInstance.SetMeta("terrain_sand_grass", sandGrass);
-		meshInstance.SetMeta("terrain_grass_rock", grassRock);
-		meshInstance.SetMeta("terrain_smoothing", smoothing);
-		meshInstance.SetMeta("terrain_texture_mode", textureMode);
-		meshInstance.SetMeta("terrain_slope_blend", slopeBlend);
-
-		AddChild(meshInstance);
-		if (Owner != null) meshInstance.Owner = Owner;
-
-		EmitProgressSignal(50.0f, "Применение текстур...");
-		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-		if (IsGenerationCanceled())
-		{
-			meshInstance.QueueFree();
-			return;
-		}
-		
-		// Вычисляем разрешение текстуры, которое будет использоваться в TerrainTexturePainter
-		// Это должно совпадать с разрешением, которое вычисляется в TerrainTexturePainter
-		int maxMapSize = Mathf.Max(length, width);
-		int texRes = TerraConfig.GetTextureResolutionForSize(maxMapSize);
-		
-		// Генерируем маску дорог, если включена опция
-		float[,] roadMask = null;
-		if (generateRoads)
-		{
-			EmitProgressSignal(55.0f, "Генерация маски дорог...");
+			EmitProgressSignal(30.0f, "Создание экземпляра меша...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			if (IsGenerationCanceled())
+			{
+				generationOutcome = "остановлен пользователем";
+				return;
+			}
+
+			var meshInstance = new MeshInstance3D
+			{
+				Mesh = mesh,
+				Name = "GeneratedMesh"
+			};
+
+			meshInstance.RotateX(Mathf.Pi);
+			int chunkIndex = continuation?.NextChunkIndex ?? GetNextChunkIndex();
+			meshInstance.Position = plannedPosition;
+			meshInstance.Name = continuation == null
+				? BuildInitialMeshName(chunkIndex)
+				: BuildContinuedMeshName(continuation.DirectionText, chunkIndex);
+			meshInstance.SetMeta("terrain_length", length);
+			meshInstance.SetMeta("terrain_width", width);
+			meshInstance.SetMeta("terrain_resolution", resolution);
+			meshInstance.SetMeta("terrain_min_height", minHeight);
+			meshInstance.SetMeta("terrain_max_height", maxHeight);
+			meshInstance.SetMeta("terrain_sand_grass", sandGrass);
+			meshInstance.SetMeta("terrain_grass_rock", grassRock);
+			meshInstance.SetMeta("terrain_smoothing", smoothing);
+			meshInstance.SetMeta("terrain_texture_mode", textureMode);
+			meshInstance.SetMeta("terrain_slope_blend", slopeBlend);
+
+			AddChild(meshInstance);
+			if (Owner != null) meshInstance.Owner = Owner;
+
+			EmitProgressSignal(50.0f, "Применение текстур...");
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			if (IsGenerationCanceled())
+			{
+				generationOutcome = "остановлен пользователем";
+				meshInstance.QueueFree();
+				return;
+			}
+		
+			// Вычисляем разрешение текстуры, которое будет использоваться в TerrainTexturePainter
+			// Это должно совпадать с разрешением, которое вычисляется в TerrainTexturePainter
+			int maxMapSize = Mathf.Max(length, width);
+			int texRes = TerraConfig.GetTextureResolutionForSize(maxMapSize);
+		
+			// Генерируем маску дорог, если включена опция
+			float[,] roadMask = null;
+			if (generateRoads)
+			{
+				EmitProgressSignal(55.0f, "Генерация маски дорог...");
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			
-			// Вычисляем пропорциональную ширину дороги
-			float roadWidth = TerraConfig.GetRoadWidthForTerrain(length, width);
+				// Вычисляем пропорциональную ширину дороги
+				float roadWidth = TerraConfig.GetRoadWidthForTerrain(length, width);
 			
-			GD.Print($"🛣️ Генерация маски дорог с разрешением: {texRes}x{texRes}");
+				GD.Print($"🛣️ Генерация маски дорог с разрешением: {texRes}x{texRes}");
 			
-			roadMask = RoadGenerator.GenerateRoadMask(
+				roadMask = RoadGenerator.GenerateRoadMask(
 				meshInstance,
 				length,
 				width,
@@ -376,37 +419,37 @@ public partial class TerrainGenerator : Node3D
 				roadWidth,
 				waterLevel,
 				sandGrass,
-				grassRock
-			);
+					grassRock
+				);
 			
-			if (roadMask != null)
-			{
-				// Проверяем, сколько пикселей в маске имеют значение > 0
-				int roadPixels = 0;
-				for (int x = 0; x < texRes; x++)
+				if (roadMask != null)
 				{
-					for (int z = 0; z < texRes; z++)
+				// Проверяем, сколько пикселей в маске имеют значение > 0
+					int roadPixels = 0;
+					for (int x = 0; x < texRes; x++)
 					{
-						if (roadMask[x, z] > 0.0f) roadPixels++;
+						for (int z = 0; z < texRes; z++)
+						{
+							if (roadMask[x, z] > 0.0f) roadPixels++;
+						}
 					}
+					GD.Print($"✅ Маска дорог создана: {texRes}x{texRes}, пикселей дорог: {roadPixels}");
 				}
-				GD.Print($"✅ Маска дорог создана: {texRes}x{texRes}, пикселей дорог: {roadPixels}");
 			}
-		}
 
-		ResolveTexturePaths(
+			ResolveTexturePaths(
 			randomUseSand,
 			randomUseGrass,
 			randomUseRock,
 			randomSandTexturePath,
 			randomGrassTexturePath,
 			randomRockTexturePath,
-			out string sandPath,
-			out string grassPath,
-			out string rockPath
-		);
+				out string sandPath,
+				out string grassPath,
+				out string rockPath
+			);
 		
-		await TerrainTexturePainter.ApplyHeightTexture(
+			await TerrainTexturePainter.ApplyHeightTexture(
 			meshInstance,
 			minHeight,
 			maxHeight,
@@ -426,37 +469,38 @@ public partial class TerrainGenerator : Node3D
 			{
 				CallDeferred(MethodName.EmitProgressSignal, progress, status);
 			},
-			() => _cancelRequested
-		);
+				() => _cancelRequested
+			);
 
-		if (IsGenerationCanceled())
-		{
-			meshInstance.QueueFree();
-			return;
-		}
+			if (IsGenerationCanceled())
+			{
+				generationOutcome = "остановлен пользователем";
+				meshInstance.QueueFree();
+				return;
+			}
 
-		EmitProgressSignal(80.0f, "Создание воды...");
-		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-		float worldWater = continuation?.SourceWaterY ?? (Mathf.Lerp(minHeight, maxHeight, waterLevel) - yOffset);
-
-		var water = random.GenerateWaterPlane(length, width, worldWater);
-		water.Position = new Vector3(meshInstance.Position.X, worldWater, meshInstance.Position.Z);
-		water.Name = continuation == null
-			? BuildInitialWaterName(chunkIndex)
-			: BuildContinuedWaterName(continuation.DirectionText, chunkIndex);
-
-		AddChild(water);
-		if (Owner != null) water.Owner = Owner;
-
-		// Дороги теперь накладываются как текстура поверх основной текстуры террейна
-		// Генерация маски дорог происходит выше, перед применением текстур
-
-		if (scatterSettings != null && scatterSettings.Count > 0)
-		{
-			EmitProgressSignal(92.0f, "Размещение объектов...");
+			EmitProgressSignal(80.0f, "Создание воды...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-			ObjectScatterPlacer.Scatter(
+
+			float worldWater = continuation?.SourceWaterY ?? (Mathf.Lerp(minHeight, maxHeight, waterLevel) - yOffset);
+
+			var water = random.GenerateWaterPlane(length, width, worldWater);
+			water.Position = new Vector3(meshInstance.Position.X, worldWater, meshInstance.Position.Z);
+			water.Name = continuation == null
+				? BuildInitialWaterName(chunkIndex)
+				: BuildContinuedWaterName(continuation.DirectionText, chunkIndex);
+
+			AddChild(water);
+			if (Owner != null) water.Owner = Owner;
+
+			// Дороги теперь накладываются как текстура поверх основной текстуры террейна
+			// Генерация маски дорог происходит выше, перед применением текстур
+
+			if (scatterSettings != null && scatterSettings.Count > 0)
+			{
+				EmitProgressSignal(92.0f, "Размещение объектов...");
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+				ObjectScatterPlacer.Scatter(
 				this,
 				meshInstance,
 				length,
@@ -468,11 +512,21 @@ public partial class TerrainGenerator : Node3D
 				roadMask,
 				texRes,
 				scatterSettings,
-				Owner
-			);
-		}
+					Owner
+				);
+			}
 
-		EmitProgressSignal(100.0f, "Генерация завершена!");
+			EmitProgressSignal(100.0f, "Генерация завершена!");
+		}
+		catch (Exception ex)
+		{
+			generationOutcome = "завершился с ошибкой";
+			GD.PrintErr($"❌ Ошибка полной генерации random terrain: {ex.Message}");
+		}
+		finally
+		{
+			LogFullGenerationDuration(fullGenerationStopwatch, "random", generationOutcome);
+		}
 	}
 
 	private async Task GenerateRealMapTerrainAsync(
@@ -485,28 +539,45 @@ public partial class TerrainGenerator : Node3D
 		string realMapSandTexturePath = "",
 		string realMapGrassTexturePath = "",
 		string realMapRockTexturePath = "",
-		float realMapObjectSpacingMultiplier = 0.70f
+		float realMapObjectSpacingMultiplier = 0.70f,
+		Stopwatch fullGenerationStopwatch = null
 	)
 	{
-		// Передаем callback для обновления прогресса
-		await RealMapTerrainGenerator.Generate(
-			this,
-			leftuplat, leftuplng,
-			rightdownlat, rightdownlng,
-			Owner,
-			resolutionMode,
-			realMapWaterLevel,
-			realMapUseSand,
-			realMapUseGrass,
-			realMapUseRock,
-			realMapSandTexturePath,
-			realMapGrassTexturePath,
-			realMapRockTexturePath,
-			realMapObjectSpacingMultiplier,
-			(progress, status) => {
-				CallDeferred(MethodName.EmitProgressSignal, progress, status);
-			}
-		);
+		string generationOutcome = "успешно завершен";
+		try
+		{
+			// Передаем callback для обновления прогресса
+			Node3D generated = await RealMapTerrainGenerator.Generate(
+				this,
+				leftuplat, leftuplng,
+				rightdownlat, rightdownlng,
+				Owner,
+				resolutionMode,
+				realMapWaterLevel,
+				realMapUseSand,
+				realMapUseGrass,
+				realMapUseRock,
+				realMapSandTexturePath,
+				realMapGrassTexturePath,
+				realMapRockTexturePath,
+				realMapObjectSpacingMultiplier,
+				(progress, status) => {
+					CallDeferred(MethodName.EmitProgressSignal, progress, status);
+				}
+			);
+
+			if (generated == null)
+				generationOutcome = "завершился с ошибкой";
+		}
+		catch (Exception ex)
+		{
+			generationOutcome = "завершился с ошибкой";
+			GD.PrintErr($"❌ Ошибка полной генерации real-map terrain: {ex.Message}");
+		}
+		finally
+		{
+			LogFullGenerationDuration(fullGenerationStopwatch, "real-map", generationOutcome);
+		}
 	}
 
 	private static bool GetBool(Godot.Collections.Dictionary dict, string key, bool fallback)
