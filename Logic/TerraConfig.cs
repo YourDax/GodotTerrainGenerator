@@ -36,9 +36,7 @@ public static class TerraConfig
 	// Вычисляет масштаб тайлинга текстур для заданного размера карты.
 	public static float GetTileScaleForSize(int maxSize)
 	{
-		// Adaptive continuous formula instead of hard thresholds.
-		// Fitted to keep close-up detail on large maps while avoiding over-tiling on small maps.
-		// Approx targets: 50 -> ~5, 100 -> ~8, 300 -> ~15, 500 -> ~21, 1200 -> ~36.
+		//  50 -> ~5, 100 -> ~8, 300 -> ~15, 500 -> ~21, 1200 -> ~36.
 		float size = Mathf.Max(1.0f, maxSize);
 		float tileScale = 0.439f * Mathf.Pow(size, 0.621f);
 		return Mathf.Clamp(tileScale, 5.0f, 60.0f);
