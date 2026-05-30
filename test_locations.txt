@@ -1,0 +1,57 @@
+TerraGenerating test execution map
+
+Visual Studio (dotnet test / Test Explorer)
+- Module:
+  - NM-1 Normalize heights -> VisualStudioTests/ProjectModuleMathTests.cs
+  - NM-2 Bilinear interpolation -> VisualStudioTests/ProjectModuleMathTests.cs
+  - NM-3 Adaptive resolution -> VisualStudioTests/ProjectModuleMathTests.cs
+  - NM-4 LonLat->UV transform -> VisualStudioTests/ProjectModuleMathTests.cs
+  - NM-5 Road mask rasterization -> VisualStudioTests/ProjectModuleMathTests.cs
+- Functional / API-backed headless cases:
+  - FT-9 OpenTopoData real-map load -> VisualStudioTests/ProjectApiClientTests.cs
+  - FT-10 OSM integration parsing -> VisualStudioTests/ProjectApiClientTests.cs
+  - API-1 OpenTopoData unavailable handling -> VisualStudioTests/ProjectApiClientTests.cs
+- Performance / headless API cases:
+  - PR-5 API clients smoke test -> VisualStudioTests/ProjectApiClientTests.cs
+  - PR-9 OpenTopoData large grid -> VisualStudioTests/ProjectApiClientTests.cs
+  - PR-10 OSM large area parsing -> VisualStudioTests/ProjectApiClientTests.cs
+
+Godot button runner (Tests/test_runner.gd)
+- Module:
+  - MB-1 MeshBuilder height mesh -> Tests/ProjectModuleTestSuite.cs
+  - TC-1 Continuation context analysis -> Tests/ProjectModuleTestSuite.cs
+  - TC-2 Continuation seam constraint -> Tests/ProjectModuleTestSuite.cs
+- Functional:
+  - FT-1 Procedural landscape generation
+  - FT-2 Procedural landscape with random parameters
+  - FT-3 Water plane addition
+  - FT-4 Texture application to generated landscape
+  - FT-5 Road mask application
+  - FT-6 Environment object placement
+  - FT-7 Continue generation X+
+  - FT-8 Import parameters from existing landscape
+  - FT-11 Progress display during generation
+  - FT-12 Cancel long operation
+  - FT-13 Export generated landscape to glTF
+  - FT-14 Prepare textures for export
+  - FT-15 Export report generation
+  - FT-16 Plugin after addon path change
+  - FT-17 Continue generation X-
+  - FT-18 Continue generation Z+
+  - FT-19 Continue generation Z-
+- Performance:
+  - PR-1 Mesh generation 16x16
+  - PR-2 Mesh generation 32x24
+  - PR-3 Mesh generation 48x40
+  - PR-4 Height texture preparation
+  - PR-6 Export scene preparation
+  - PR-7 Maximum-size mesh generation
+  - PR-8 Texture application across sizes
+  - PR-11 Height map normalization and slope filtering
+  - PR-12 Road mask application
+  - PR-13 Object placement 100 objects
+  - PR-14 Continuation chunk stitching
+
+Notes
+- Visual Studio test project lives in VisualStudioTests/TerraGenerating.VisualStudioTests.csproj.
+- Godot C# build excludes VisualStudioTests so the test project does not leak into the addon build.

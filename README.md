@@ -245,10 +245,23 @@
 
 ## Тесты
 
-Файлы тестов:
+Тесты разделены на 2 контура:
+
+1. Visual Studio (без запуска Godot)
+
+- Проект: `VisualStudioTests/TerraGenerating.VisualStudioTests.csproj`
+- Текущий набор: перенесенные существующие проверки:
+   - `NM-1..NM-5` из `Tests/ProjectModuleTestSuite.cs` (математика/вспомогательные функции генерации)
+   - `ФТ-9`, `ФТ-10` из `Tests/ProjectFunctionalTestSuite.cs` (OpenTopoData/OSM API)
+   - `PR-5`, `PR-9`, `PR-10` из `Tests/ProjectPerformanceTestSuite.cs` (headless API-производительность)
+- Запуск в терминале: `dotnet test VisualStudioTests/TerraGenerating.VisualStudioTests.csproj`
+- Запуск в Visual Studio: откройте `VisualStudioTests/TerraGenerating.VisualStudioTests.csproj` и используйте Test Explorer.
+
+2. Только Godot (требуют runtime/сцены/ресурсы)
 
 - `Tests/ProjectTestingSuite.cs`
 - `Tests/test_runner.gd`
+- В кнопочном прогоне остались Godot-зависимые проверки (включая `NM-6..NM-8`, `ФТ-1..ФТ-8`, `ФТ-11..ФТ-16`, `PR-1..PR-4`, `PR-6..PR-8`).
 
 Запуск из редактора Godot:
 

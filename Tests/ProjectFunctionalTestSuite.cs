@@ -3,9 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Net;
-using System.Net.Http;
-using System.Text;
 
 public sealed partial class ProjectFunctionalTestSuite
 {
@@ -14,7 +11,7 @@ public sealed partial class ProjectFunctionalTestSuite
 	{
 		var group = new TestGroupResult(
 			"Функциональные тесты",
-			"Проверяются все функциональные требования ФТ-1..ФТ-16, включая генерацию, UI-заполнение, API-обмен, экспорт и отмену.",
+			"Проверяются функциональные требования ФТ-1..ФТ-16 для Godot-рантайма: генерация, UI, экспорт и отмена.",
 			"Каждое функциональное требование должно дать наблюдаемый результат без ошибок и с корректным состоянием интерфейса или файла.");
 
 		var watch = Stopwatch.StartNew();
@@ -228,59 +225,103 @@ public sealed partial class ProjectFunctionalTestSuite
 			}
 		}));
 
-		group.Operations.Add(TestTools.RunOperation("ФТ-9", "Система должна выполнять генерацию реальной карты по географическим координатам: координаты и ответы OpenTopoData → ландшафт по внешним геоданным.", "ОТОПО API интегрируется и данные высот корректно используются для генерации.", () =>
+		group.Operations.Add(TestTools.RunOperation("ФТ-17", "Система должна продолжать генерацию в направлении X-.", "Для X- ширина блокируется, а length остается доступным.", () =>
 		{
-			var http = TestTools.CreateHttpClient(request =>
+			string panelPath = $"{TerraConfig.AddonRootPath}/terra_panel.tscn";
+			var panelScene = ResourceLoader.Load<PackedScene>(panelPath);
+			if (panelScene == null)
+				throw new InvalidOperationException($"{panelPath} not found.");
+			var panel = TestTools.AttachToScene(panelScene.Instantiate()) as Node;
+			if (panel == null)
+				throw new InvalidOperationException("Panel instance is null.");
+			try
 			{
-				string decoded = Uri.UnescapeDataString(request.RequestUri.Query);
-				int count = 1;
-				int idx = decoded.IndexOf("locations=", StringComparison.Ordinal);
-				if (idx >= 0)
-				{
-					string payload = decoded.Substring(idx + 10);
-					count = payload.Split('|').Length;
-				}
-				var json = new StringBuilder();
-				json.Append("{\"results\":[");
-				for (int i = 0; i < count; i++)
-				{
-					if (i > 0)
-						json.Append(',');
-					json.Append("{\"elevation\":").Append(100 + i).Append('}');
-				}
-				json.Append("]}");
-				return new HttpResponseMessage(HttpStatusCode.OK)
-				{
-					Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json")
-				};
-			});
-			var client = new OpenTopoDataClient(http);
-			float[,] grid = client.FetchHeightsGridAsync(60f, 30f, 59.5f, 30.5f, 2, 4, 1, 0, 1, 0, TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
-			if (grid == null || grid.GetLength(0) != 2 || grid[0, 0] != 100f)
-				throw new InvalidOperationException("OpenTopoData grid is invalid.");
-			return $"Высоты: {grid[0, 0].ToString("0.###", CultureInfo.InvariantCulture)} / {grid[1, 1].ToString("0.###", CultureInfo.InvariantCulture)}";
+				panel.Call("_show_random_mode");
+				var continueCheck = panel.GetNodeOrNull<CheckBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/ContinueGenerationRow/ContinueGenerationCheck");
+				var direction = panel.GetNodeOrNull<OptionButton>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/ContinueGenerationRow/ContinueDirection");
+				var lengthField = panel.GetNodeOrNull<SpinBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer X/Xbox");
+				var widthField = panel.GetNodeOrNull<SpinBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Z/Zbox");
+				if (continueCheck == null || direction == null || lengthField == null || widthField == null)
+					throw new InvalidOperationException("Continuation controls are missing.");
+				continueCheck.ButtonPressed = true;
+				direction.Selected = 1;
+				panel.Call("_update_continue_generation_ui");
+				if (!lengthField.Editable || widthField.Editable)
+					throw new InvalidOperationException("X- continuation UI state is invalid.");
+				if (panel.Call("_get_continue_direction").AsString() != "x-")
+					throw new InvalidOperationException("Direction text is not x-.");
+				return "X- continuation UI verified";
+			}
+			finally
+			{
+				panel.QueueFree();
+			}
 		}));
 
-		group.Operations.Add(TestTools.RunOperation("ФТ-10", "Система должна интегрировать OSM-данные при построении сцены по реальным геоданным: координаты и ответы OSM → вода / деревья в сцене по реальным геоданным.", "ОСМ данные скрифинируются и деревья и вода появляются в корректных позициях.", () =>
+		group.Operations.Add(TestTools.RunOperation("ФТ-18", "Система должна продолжать генерацию в направлении Z+.", "Для Z+ длина блокируется, а width остается доступным.", () =>
 		{
-			var http = TestTools.CreateHttpClient(request =>
+			string panelPath = $"{TerraConfig.AddonRootPath}/terra_panel.tscn";
+			var panelScene = ResourceLoader.Load<PackedScene>(panelPath);
+			if (panelScene == null)
+				throw new InvalidOperationException($"{panelPath} not found.");
+			var panel = TestTools.AttachToScene(panelScene.Instantiate()) as Node;
+			if (panel == null)
+				throw new InvalidOperationException("Panel instance is null.");
+			try
 			{
-				string body = request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-				string decoded = Uri.UnescapeDataString(body);
-				if (decoded.Contains("natural\"=\"tree"))
-				{
-					string treeJson = "{\"elements\":[{\"type\":\"node\",\"lat\":59.1,\"lon\":30.2,\"tags\":{\"natural\":\"tree\"}},{\"type\":\"node\",\"lat\":59.2,\"lon\":30.3,\"tags\":{\"natural\":\"tree\"}}]}";
-					return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(treeJson, Encoding.UTF8, "application/json") };
-				}
-				string waterJson = "{\"elements\":[{\"type\":\"way\",\"geometry\":[{\"lat\":59.0,\"lon\":30.0},{\"lat\":59.0,\"lon\":30.5},{\"lat\":59.5,\"lon\":30.5},{\"lat\":59.5,\"lon\":30.0}],\"tags\":{\"natural\":\"water\"}}]}";
-				return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(waterJson, Encoding.UTF8, "application/json") };
-			});
-			var client = new OsmOverpassClient(http);
-			var trees = client.FetchTreeNodesAsync(59f, 30f, 60f, 31f, 10).GetAwaiter().GetResult();
-			var water = client.FetchWaterPolygonsAsync(59f, 30f, 60f, 31f, 10).GetAwaiter().GetResult();
-			if (trees.Count != 2 || water.Count != 1)
-				throw new InvalidOperationException("OSM parsing returned unexpected counts.");
-			return $"Деревьев={trees.Count}, воды={water.Count}";
+				panel.Call("_show_random_mode");
+				var continueCheck = panel.GetNodeOrNull<CheckBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/ContinueGenerationRow/ContinueGenerationCheck");
+				var direction = panel.GetNodeOrNull<OptionButton>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/ContinueGenerationRow/ContinueDirection");
+				var lengthField = panel.GetNodeOrNull<SpinBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer X/Xbox");
+				var widthField = panel.GetNodeOrNull<SpinBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Z/Zbox");
+				if (continueCheck == null || direction == null || lengthField == null || widthField == null)
+					throw new InvalidOperationException("Continuation controls are missing.");
+				continueCheck.ButtonPressed = true;
+				direction.Selected = 2;
+				panel.Call("_update_continue_generation_ui");
+				if (lengthField.Editable || !widthField.Editable)
+					throw new InvalidOperationException("Z+ continuation UI state is invalid.");
+				if (panel.Call("_get_continue_direction").AsString() != "z+")
+					throw new InvalidOperationException("Direction text is not z+.");
+				return "Z+ continuation UI verified";
+			}
+			finally
+			{
+				panel.QueueFree();
+			}
+		}));
+
+		group.Operations.Add(TestTools.RunOperation("ФТ-19", "Система должна продолжать генерацию в направлении Z-.", "Для Z- длина блокируется, а width остается доступным.", () =>
+		{
+			string panelPath = $"{TerraConfig.AddonRootPath}/terra_panel.tscn";
+			var panelScene = ResourceLoader.Load<PackedScene>(panelPath);
+			if (panelScene == null)
+				throw new InvalidOperationException($"{panelPath} not found.");
+			var panel = TestTools.AttachToScene(panelScene.Instantiate()) as Node;
+			if (panel == null)
+				throw new InvalidOperationException("Panel instance is null.");
+			try
+			{
+				panel.Call("_show_random_mode");
+				var continueCheck = panel.GetNodeOrNull<CheckBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/ContinueGenerationRow/ContinueGenerationCheck");
+				var direction = panel.GetNodeOrNull<OptionButton>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/ContinueGenerationRow/ContinueDirection");
+				var lengthField = panel.GetNodeOrNull<SpinBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer X/Xbox");
+				var widthField = panel.GetNodeOrNull<SpinBox>("MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Z/Zbox");
+				if (continueCheck == null || direction == null || lengthField == null || widthField == null)
+					throw new InvalidOperationException("Continuation controls are missing.");
+				continueCheck.ButtonPressed = true;
+				direction.Selected = 3;
+				panel.Call("_update_continue_generation_ui");
+				if (lengthField.Editable || !widthField.Editable)
+					throw new InvalidOperationException("Z- continuation UI state is invalid.");
+				if (panel.Call("_get_continue_direction").AsString() != "z-")
+					throw new InvalidOperationException("Direction text is not z-.");
+				return "Z- continuation UI verified";
+			}
+			finally
+			{
+				panel.QueueFree();
+			}
 		}));
 
 		group.Operations.Add(TestTools.RunOperation("ФТ-11", "Система должна отображать прогресс выполнения длительных операций: запущенная операция → окно прогресса и статус.", "Окно прогресса отображается в речали в режиме реального времени з процентом и текстом.", () =>

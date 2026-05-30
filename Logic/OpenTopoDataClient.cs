@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,12 +12,20 @@ public sealed class OpenTopoDataClient
 {
 	private readonly System.Net.Http.HttpClient _http;
 	private readonly string _apiBase;
+	private readonly Action<string> _infoLogger;
+	private readonly Action<string> _errorLogger;
 
 	// Создаёт клиент для OpenTopoData на указанной базе API.
-	public OpenTopoDataClient(System.Net.Http.HttpClient http, string apiBase = "https://api.opentopodata.org/v1/srtm90m")
+	public OpenTopoDataClient(
+		System.Net.Http.HttpClient http,
+		string apiBase = "https://api.opentopodata.org/v1/srtm90m",
+		Action<string> infoLogger = null,
+		Action<string> errorLogger = null)
 	{
 		_http = http ?? throw new ArgumentNullException(nameof(http));
 		_apiBase = apiBase.TrimEnd('/');
+		_infoLogger = infoLogger;
+		_errorLogger = errorLogger;
 	}
 
 	// Запрашивает сетку высот и раскладывает ответ обратно в квадратный массив.
@@ -88,14 +97,14 @@ public sealed class OpenTopoDataClient
 						break;
 					}
 
-					GD.PrintErr($"OpenTopoData: HTTP {resp.StatusCode} (req {reqCount}/{allowedRequests}), retry {retry + 1}/{maxRetries}");
+					LogError($"OpenTopoData: HTTP {resp.StatusCode} (req {reqCount}/{allowedRequests}), retry {retry + 1}/{maxRetries}");
 					retry++;
 					if (retry < maxRetries)
 						await Task.Delay(retryDelayMs * (retry + 1), ct);
 				}
 				catch (Exception)
 				{
-					GD.PrintErr($"OpenTopoData: exception (req {reqCount}/{allowedRequests}), retry {retry + 1}/{maxRetries}");
+					LogError($"OpenTopoData: exception (req {reqCount}/{allowedRequests}), retry {retry + 1}/{maxRetries}");
 					retry++;
 					if (retry < maxRetries)
 						await Task.Delay(retryDelayMs * (retry + 1), ct);
@@ -104,7 +113,7 @@ public sealed class OpenTopoDataClient
 
 			if (!success || resp == null)
 			{
-				GD.PrintErr($"OpenTopoData: запрос {reqCount}/{allowedRequests} не удался после {maxRetries} попыток");
+				LogError($"OpenTopoData: запрос {reqCount}/{allowedRequests} не удался после {maxRetries} попыток");
 				for (int i = 0; i < take; i++)
 				{
 					int flat = idx + i;
@@ -119,28 +128,32 @@ public sealed class OpenTopoDataClient
 			string json = await resp.Content.ReadAsStringAsync(ct);
 			{
 				string snippet = json.Length > 500 ? json.Substring(0, 500) + " ..." : json;
-				GD.Print($"OpenTopoData: ответ #{reqCount}/{allowedRequests} (points={take}): {snippet}");
+				LogInfo($"OpenTopoData: ответ #{reqCount}/{allowedRequests} (points={take}): {snippet}");
 			}
-			var parsed = Godot.Json.ParseString(json).AsGodotDictionary();
-			if (!parsed.ContainsKey("results"))
+			using var doc = JsonDocument.Parse(json);
+			if (!doc.RootElement.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
 			{
 				idx += take;
 				continue;
 			}
-			var results = parsed["results"].AsGodotArray();
-			for (int i = 0; i < results.Count; i++)
+			int resultCount = results.GetArrayLength();
+			for (int i = 0; i < resultCount; i++)
 			{
 				int flat = idx + i;
 				if (flat >= resolution * resolution) break;
-				var r = results[i].AsGodotDictionary();
 				float elev = float.NaN;
-				if (r.ContainsKey("elevation") && r["elevation"].VariantType != Variant.Type.Nil)
+				var r = results[i];
+				if (r.ValueKind == JsonValueKind.Object && r.TryGetProperty("elevation", out var elevNode))
 				{
-					var v = r["elevation"];
-					if (v.VariantType == Variant.Type.Float) elev = v.AsSingle();
-					else if (v.VariantType == Variant.Type.Int) elev = v.AsInt32();
-					else if (v.VariantType == Variant.Type.String)
-						float.TryParse(v.AsString(), NumberStyles.Any, CultureInfo.InvariantCulture, out elev);
+					switch (elevNode.ValueKind)
+					{
+						case JsonValueKind.Number:
+							elev = elevNode.GetSingle();
+							break;
+						case JsonValueKind.String:
+							float.TryParse(elevNode.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out elev);
+							break;
+					}
 				}
 
 				int x = flat % resolution;
@@ -155,5 +168,25 @@ public sealed class OpenTopoDataClient
 		}
 
 		return data;
+	}
+
+	private void LogError(string message)
+	{
+		if (_errorLogger != null)
+		{
+			_errorLogger(message);
+			return;
+		}
+		Console.Error.WriteLine(message);
+	}
+
+	private void LogInfo(string message)
+	{
+		if (_infoLogger != null)
+		{
+			_infoLogger(message);
+			return;
+		}
+		Console.WriteLine(message);
 	}
 }

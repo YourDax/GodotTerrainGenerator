@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,11 +13,15 @@ public sealed class OsmOverpassClient
 {
 	private readonly System.Net.Http.HttpClient _http;
 	private readonly string[] _overpassUrls;
+	private readonly Action<string> _infoLogger;
+	private readonly Action<string> _errorLogger;
 
 	// Создаёт клиент Overpass и список запасных endpoints.
 	public OsmOverpassClient(
 		System.Net.Http.HttpClient http,
-		string overpassUrl = "https://overpass-api.de/api/interpreter"
+		string overpassUrl = "https://overpass-api.de/api/interpreter",
+		Action<string> infoLogger = null,
+		Action<string> errorLogger = null
 	)
 	{
 		_http = http ?? throw new ArgumentNullException(nameof(http));
@@ -26,10 +31,12 @@ public sealed class OsmOverpassClient
 			"https://overpass.openstreetmap.fr/api/interpreter",
 			"https://maps.mail.ru/osm/tools/overpass/api/"
 		};
+		_infoLogger = infoLogger;
+		_errorLogger = errorLogger;
 	}
 
-	public readonly record struct OsmNode(double Lat, double Lon, Godot.Collections.Dictionary Tags);
-	public readonly record struct OsmWayGeometry(List<Vector2> GeometryLonLat, Godot.Collections.Dictionary Tags);
+	public readonly record struct OsmNode(double Lat, double Lon, Dictionary<string, string> Tags);
+	public readonly record struct OsmWayGeometry(List<Vector2> GeometryLonLat, Dictionary<string, string> Tags);
 
 	/// <summary>
 	/// Получить деревья по bbox (south, west, north, east). Берём OSM nodes с natural=tree и деревья внутри landuse=forest/wood через nodes тоже.
@@ -69,53 +76,64 @@ out body;
 				if (resp.IsSuccessStatusCode)
 					break;
 
-				GD.PrintErr($"OSM Overpass HTTP {resp.StatusCode} ({url})");
+				LogError($"OSM Overpass HTTP {resp.StatusCode} ({url})");
 				if (attempt < _overpassUrls.Length - 1)
-					GD.Print($"OSM Overpass: пробую другой инстанс ({_overpassUrls[attempt + 1]})");
+					LogInfo($"OSM Overpass: пробую другой инстанс ({_overpassUrls[attempt + 1]})");
 				// GatewayTimeout/TooManyRequests — пробуем следующий инстанс
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"OSM Overpass error ({url}): {ex.Message}");
+				LogError($"OSM Overpass error ({url}): {ex.Message}");
 				if (attempt < _overpassUrls.Length - 1)
-					GD.Print($"OSM Overpass: пробую другой инстанс ({_overpassUrls[attempt + 1]})");
+					LogInfo($"OSM Overpass: пробую другой инстанс ({_overpassUrls[attempt + 1]})");
 			}
 		}
 
 		if (resp == null || !resp.IsSuccessStatusCode)
 		{
-			GD.PrintErr("OSM Overpass: не удалось получить данные");
+			LogError("OSM Overpass: не удалось получить данные");
 			return new List<OsmNode>();
 		}
 
 		string json = await resp.Content.ReadAsStringAsync(ct);
 		{
 			string snippet = json.Length > 800 ? json.Substring(0, 800) + " ..." : json;
-			GD.Print($"OSM Overpass: ответ (bbox={bbox}): {snippet}");
+			LogInfo($"OSM Overpass: ответ (bbox={bbox}): {snippet}");
 		}
-		var parsed = Godot.Json.ParseString(json).AsGodotDictionary();
-		if (!parsed.ContainsKey("elements"))
+		using var doc = JsonDocument.Parse(json);
+		if (!doc.RootElement.TryGetProperty("elements", out var elements) || elements.ValueKind != JsonValueKind.Array)
 			return new List<OsmNode>();
 
-		var elements = parsed["elements"].AsGodotArray();
-		var result = new List<OsmNode>(elements.Count);
+		var result = new List<OsmNode>(elements.GetArrayLength());
 
-		for (int i = 0; i < elements.Count; i++)
+		for (int i = 0; i < elements.GetArrayLength(); i++)
 		{
-			var el = elements[i].AsGodotDictionary();
-			if (!el.TryGetValue("type", out var t) || t.AsString() != "node")
+			var el = elements[i];
+			if (el.ValueKind != JsonValueKind.Object)
 				continue;
-			if (!el.TryGetValue("lat", out var latV) || !el.TryGetValue("lon", out var lonV))
+			if (!el.TryGetProperty("type", out var t) || !string.Equals(t.GetString(), "node", StringComparison.Ordinal))
+				continue;
+			if (!el.TryGetProperty("lat", out var latV) || !el.TryGetProperty("lon", out var lonV))
 				continue;
 
-			double lat = latV.VariantType == Variant.Type.Float ? latV.AsDouble() : Convert.ToDouble(latV.AsString(), CultureInfo.InvariantCulture);
-			double lon = lonV.VariantType == Variant.Type.Float ? lonV.AsDouble() : Convert.ToDouble(lonV.AsString(), CultureInfo.InvariantCulture);
+			double lat = latV.ValueKind == JsonValueKind.Number
+				? latV.GetDouble()
+				: Convert.ToDouble(latV.GetString(), CultureInfo.InvariantCulture);
+			double lon = lonV.ValueKind == JsonValueKind.Number
+				? lonV.GetDouble()
+				: Convert.ToDouble(lonV.GetString(), CultureInfo.InvariantCulture);
 
-			Godot.Collections.Dictionary tags = null;
-			if (el.TryGetValue("tags", out var tagsV) && tagsV.VariantType == Variant.Type.Dictionary)
-				tags = tagsV.AsGodotDictionary();
-			else
-				tags = new Godot.Collections.Dictionary();
+			var tags = new Dictionary<string, string>(StringComparer.Ordinal);
+			if (el.TryGetProperty("tags", out var tagsNode) && tagsNode.ValueKind == JsonValueKind.Object)
+			{
+				foreach (var property in tagsNode.EnumerateObject())
+				{
+					if (property.Value.ValueKind == JsonValueKind.String)
+						tags[property.Name] = property.Value.GetString() ?? string.Empty;
+					else
+						tags[property.Name] = property.Value.ToString();
+				}
+			}
 
 			result.Add(new OsmNode(lat, lon, tags));
 		}
@@ -162,47 +180,51 @@ out geom;
 				resp = await _http.PostAsync(url, content, ct);
 				if (resp.IsSuccessStatusCode)
 					break;
-				GD.PrintErr($"OSM Overpass HTTP {resp.StatusCode} ({url})");
+				LogError($"OSM Overpass HTTP {resp.StatusCode} ({url})");
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"OSM Overpass error ({url}): {ex.Message}");
+				LogError($"OSM Overpass error ({url}): {ex.Message}");
 			}
 		}
 		if (resp == null || !resp.IsSuccessStatusCode)
 		{
-			GD.PrintErr("OSM Overpass (water): не удалось получить данные");
+			LogError("OSM Overpass (water): не удалось получить данные");
 			return polys;
 		}
 
 		string json = await resp.Content.ReadAsStringAsync(ct);
 		{
 			string snippet = json.Length > 800 ? json.Substring(0, 800) + " ..." : json;
-			GD.Print($"OSM Overpass: ответ (water bbox={bbox}): {snippet}");
+			LogInfo($"OSM Overpass: ответ (water bbox={bbox}): {snippet}");
 		}
 
-		var parsed = Godot.Json.ParseString(json).AsGodotDictionary();
-		if (!parsed.ContainsKey("elements"))
+		using var doc = JsonDocument.Parse(json);
+		if (!doc.RootElement.TryGetProperty("elements", out var elements) || elements.ValueKind != JsonValueKind.Array)
 			return polys;
 
-		var elements = parsed["elements"].AsGodotArray();
-		for (int i = 0; i < elements.Count; i++)
+		for (int i = 0; i < elements.GetArrayLength(); i++)
 		{
-			var el = elements[i].AsGodotDictionary();
-			if (!el.TryGetValue("type", out var tV)) continue;
-			string type = tV.AsString();
+			var el = elements[i];
+			if (el.ValueKind != JsonValueKind.Object) continue;
+			if (!el.TryGetProperty("type", out var tV)) continue;
+			string type = tV.GetString() ?? string.Empty;
 			if (type != "way" && type != "relation") continue;
 
-			if (el.TryGetValue("geometry", out var geomV) && geomV.VariantType == Variant.Type.Array)
+			if (el.TryGetProperty("geometry", out var geomV) && geomV.ValueKind == JsonValueKind.Array)
 			{
-				var geom = geomV.AsGodotArray();
-				var poly = new List<Vector2>(geom.Count);
-				for (int gi = 0; gi < geom.Count; gi++)
+				var poly = new List<Vector2>(geomV.GetArrayLength());
+				for (int gi = 0; gi < geomV.GetArrayLength(); gi++)
 				{
-					var p = geom[gi].AsGodotDictionary();
-					if (!p.TryGetValue("lat", out var latV) || !p.TryGetValue("lon", out var lonV)) continue;
-					double lat = latV.AsDouble();
-					double lon = lonV.AsDouble();
+					var p = geomV[gi];
+					if (p.ValueKind != JsonValueKind.Object) continue;
+					if (!p.TryGetProperty("lat", out var latV) || !p.TryGetProperty("lon", out var lonV)) continue;
+					double lat = latV.ValueKind == JsonValueKind.Number
+						? latV.GetDouble()
+						: Convert.ToDouble(latV.GetString(), CultureInfo.InvariantCulture);
+					double lon = lonV.ValueKind == JsonValueKind.Number
+						? lonV.GetDouble()
+						: Convert.ToDouble(lonV.GetString(), CultureInfo.InvariantCulture);
 					poly.Add(new Vector2((float)lon, (float)lat));
 				}
 				if (poly.Count >= 3)
@@ -212,6 +234,26 @@ out geom;
 
 		progress?.Invoke(100f, $"OSM: вода полигонов {polys.Count}");
 		return polys;
+	}
+
+	private void LogError(string message)
+	{
+		if (_errorLogger != null)
+		{
+			_errorLogger(message);
+			return;
+		}
+		Console.Error.WriteLine(message);
+	}
+
+	private void LogInfo(string message)
+	{
+		if (_infoLogger != null)
+		{
+			_infoLogger(message);
+			return;
+		}
+		Console.WriteLine(message);
 	}
 
 }

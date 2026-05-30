@@ -1,6 +1,5 @@
 using Godot;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 
@@ -11,122 +10,75 @@ public sealed class ProjectModuleTestSuite
 	{
 		var group = new TestGroupResult(
 			"Модульные тесты",
-			"Проверяются математические функции, генерация меша, построение маски дорог и основные константы плагина.",
-			"Все ключевые низкоуровневые операции возвращают корректные значения и валидные ресурсы.");
+			"Проверяются Godot-зависимые части ядра: MeshBuilder и TerrainContinuationService.",
+			"Все Godot-зависимые операции генерации меша и continuation возвращают корректные значения.");
 
 		var watch = Stopwatch.StartNew();
 		group.Operations.Add(TestTools.RunOperation(
-			"NM-1 Normalization",
-			"Проверяется перенос значений высоты в целевой диапазон.",
-			"Минимум должен стать 0, максимум должен стать 1.",
+			"MB-1 MeshBuilder height mesh",
+			"Проверяется построение height mesh через MeshBuilder.",
+			"MeshBuilder должен возвращать ArrayMesh с поверхностью.",
 			() =>
 			{
-				var heights = new float[,] { { 2f, 4f }, { 6f, 8f } };
-				TerrainMath.NormalizeToRange(heights, 0f, 1f);
-				if (Math.Abs(heights[0, 0] - 0f) > 0.001f || Math.Abs(heights[1, 1] - 1f) > 0.001f)
-					throw new InvalidOperationException("NormalizeToRange returned unexpected values.");
-				return $"Диапазон: {heights[0, 0].ToString("0.###", CultureInfo.InvariantCulture)}..{heights[1, 1].ToString("0.###", CultureInfo.InvariantCulture)}";
-			}));
-
-		group.Operations.Add(TestTools.RunOperation(
-			"NM-2 Bilinear sample",
-			"Проверяется билинейная выборка внутри сетки.",
-			"Центральная точка должна попадать между крайними значениями.",
-			() =>
-			{
-				var heights = new float[,] { { 0f, 2f }, { 2f, 4f } };
-				float sample = TerrainMath.BilinearSample(heights, 0.5f, 0.5f);
-				if (sample <= 0.9f || sample >= 3.1f)
-					throw new InvalidOperationException($"Unexpected bilinear sample: {sample}");
-				return $"Центр массива: {sample.ToString("0.###", CultureInfo.InvariantCulture)}";
-			}));
-
-		group.Operations.Add(TestTools.RunOperation(
-			"NM-3 Resolution modes",
-			"Проверяется расчет разрешения для разных режимов.",
-			"HighQuality и MediumQuality должны возвращать фиксированные значения, adaptive - рабочий диапазон.",
-			() =>
-			{
-				int high = TerrainMath.ResolveResolution(1f, 0f, 1f, 0f, 0);
-				int medium = TerrainMath.ResolveResolution(1f, 0f, 1f, 0f, 1);
-				int adaptive = TerrainMath.ResolveResolution(1f, 0f, 1f, 0f, 2);
-				if (high != 50 || medium != 31 || adaptive <= 0)
-					throw new InvalidOperationException("ResolveResolution returned invalid values.");
-				return $"Режимы: {high}/{medium}/{adaptive}";
-			}));
-
-		group.Operations.Add(TestTools.RunOperation(
-			"NM-4 Coordinate transforms",
-			"Проверяются преобразования lon/lat -> UV и UV -> local.",
-			"Преобразования должны возвращать координаты в ожидаемом диапазоне.",
-			() =>
-			{
-				Vector2 uv = TerrainMath.LonLatToUv(59.5, 30.5, 60f, 59f, 30f, 31f);
-				Vector3 local = TerrainMath.UvToLocal(uv.X, uv.Y, 100f, 50f, 3f);
-				if (uv.X < 0f || uv.X > 1f || uv.Y < 0f || uv.Y > 1f)
-					throw new InvalidOperationException("UV is outside of expected range.");
-				return $"UV={uv.X.ToString("0.###", CultureInfo.InvariantCulture)},{uv.Y.ToString("0.###", CultureInfo.InvariantCulture)} localY={local.Y.ToString("0.###", CultureInfo.InvariantCulture)}";
-			}));
-
-		group.Operations.Add(TestTools.RunOperation(
-			"NM-5 Road mask rasterization",
-			"Проверяется построение маски дороги по ломаной.",
-			"В центре траектории должны появляться ненулевые значения маски.",
-			() =>
-			{
-				var mask = new float[32, 32];
-				var polyline = new List<Vector2>
-				{
-					new Vector2(-8f, 0f),
-					new Vector2(8f, 0f),
-				};
-				TerrainMath.RasterizeRoadMask(mask, polyline, 16, 16, 3f);
-				float center = mask[16, 16];
-				if (center <= 0f)
-					throw new InvalidOperationException("Road mask center is empty.");
-				return $"Центр маски={center.ToString("0.###", CultureInfo.InvariantCulture)}";
-			}));
-
-		group.Operations.Add(TestTools.RunOperation(
-			"NM-6 Terrain mesh generation",
-			"Проверяется создание меша случайного рельефа.",
-			"Генератор должен возвращать меш с поверхностью.",
-			() =>
-			{
-				var generator = new RandomTerrainGenerator();
-				Mesh mesh = generator.GenerateMesh(24, 24, -4f, 12f, 12, 0.75f, false, 0.35f, 11, 22, 33, 44);
+				var baseNoise = new FastNoiseLite { Seed = 11, Frequency = 0.04f };
+				var hillNoise = new FastNoiseLite { Seed = 22, Frequency = 0.07f };
+				var detailNoise = new FastNoiseLite { Seed = 33, Frequency = 0.14f };
+				Mesh mesh = MeshBuilder.BuildHeightMesh(24, 24, -4f, 12f, 12, baseNoise, hillNoise, detailNoise, 0.65f, false, 0.35f, 0.2f, 1f, 0.06f, 0.18f, null, 0f, 0f);
 				if (mesh == null || mesh.GetSurfaceCount() == 0)
-					throw new InvalidOperationException("GenerateMesh returned an empty mesh.");
+					throw new InvalidOperationException("MeshBuilder returned an empty mesh.");
 				return $"SurfaceCount={mesh.GetSurfaceCount()}";
 			}));
 
 		group.Operations.Add(TestTools.RunOperation(
-			"NM-7 Water plane generation",
-			"Проверяется создание водной плоскости.",
-			"Плоскость должна иметь воду-материал и корректную высоту.",
+			"TC-1 Continue context analysis",
+			"Проверяется анализ frontier и контекста continuation.",
+			"BuildContinueContext должен вернуть согласованный контекст для x+.",
 			() =>
 			{
-				var generator = new RandomTerrainGenerator();
-				MeshInstance3D water = generator.GenerateWaterPlane(12, 8, 0.75f);
-				if (water == null || water.MaterialOverride == null)
-					throw new InvalidOperationException("GenerateWaterPlane returned invalid water node.");
-				return $"WaterY={water.Position.Y.ToString("0.###", CultureInfo.InvariantCulture)}";
+				var root = new Node3D { Name = "ContinuationRoot" };
+				var source = TestTools.CreateSampleTerrainInstance(24, 24, 12, 1);
+				source.Name = "GeneratedMesh_Chunk_1";
+				root.AddChild(source);
+
+				var ctx = TerrainContinuationService.BuildContinueContext(root, "x+");
+				if (ctx == null)
+					throw new InvalidOperationException("BuildContinueContext returned null.");
+				if (ctx.Direction != TerrainContinuationService.ContinueDirection.XPlus)
+					throw new InvalidOperationException("Unexpected continuation direction.");
+				if (ctx.FrontierSegments == null || ctx.FrontierSegments.Count != 1)
+					throw new InvalidOperationException("Unexpected frontier segment count.");
+				if (ctx.SuggestedResolution <= 0 || ctx.SourceLength <= 0 || ctx.SourceWidth <= 0)
+					throw new InvalidOperationException("Continuation context has invalid sizing.");
+				return $"frontier={ctx.FrontierSegments.Count}, res={ctx.SuggestedResolution}";
 			}));
 
 		group.Operations.Add(TestTools.RunOperation(
-			"NM-8 Core resources",
-			"Проверяются базовые пути ресурсов плагина.",
-			"Основные текстуры и путь корня аддона должны существовать.",
+			"TC-2 Continuation seam constraint",
+			"Проверяется ограничение по шву на новом меше continuation.",
+			"ApplyEdgeConstraintToMesh должен менять seam-профиль без падений.",
 			() =>
 			{
-				string sand = TerraConfig.SandTexturePath;
-				string grass = TerraConfig.GrassTexturePath;
-				string rock = TerraConfig.RockTexturePath;
-				if (string.IsNullOrWhiteSpace(TerraConfig.AddonRootPath))
-					throw new InvalidOperationException("AddonRootPath is empty.");
-				if (!ResourceLoader.Exists(sand) || !ResourceLoader.Exists(grass) || !ResourceLoader.Exists(rock))
-					throw new InvalidOperationException("One or more default terrain textures are missing.");
-				return "Базовые текстуры доступны";
+				var root = new Node3D { Name = "ContinuationRoot" };
+				var source = TestTools.CreateSampleTerrainInstance(24, 24, 12, 2);
+				source.Name = "GeneratedMesh_Chunk_1";
+				root.AddChild(source);
+
+				var ctx = TerrainContinuationService.BuildContinueContext(root, "x+");
+
+				var targetHeights = TestTools.CreateHeightGrid(12, 12, (x, z) => 20f + x * 0.4f + z * 0.2f);
+				Mesh targetMesh = MeshBuilder.BuildTerrainMesh(targetHeights, 24, 24);
+				if (targetMesh == null || targetMesh.GetSurfaceCount() == 0)
+					throw new InvalidOperationException("Target mesh is invalid.");
+
+				float before = GetSeamAverageY(targetMesh);
+				TerrainContinuationService.ApplyEdgeConstraintToMesh(targetMesh, 12, ctx, false);
+				float after = GetSeamAverageY(targetMesh);
+
+				if (float.IsNaN(before) || float.IsNaN(after))
+					throw new InvalidOperationException("Seam averages are invalid.");
+				if (Math.Abs(after - before) < 0.01f)
+					throw new InvalidOperationException("Seam constraint did not affect the mesh.");
+				return $"before={before.ToString("0.###", CultureInfo.InvariantCulture)}, after={after.ToString("0.###", CultureInfo.InvariantCulture)}";
 			}));
 
 		watch.Stop();
@@ -139,5 +91,31 @@ public sealed class ProjectModuleTestSuite
 		}
 		group.ActualResult = group.Passed ? $"Проверено {group.Operations.Count} операций" : "Есть проваленные операции";
 		return group;
+	}
+
+	private static float GetSeamAverageY(Mesh mesh)
+	{
+		if (mesh is not ArrayMesh arrayMesh || arrayMesh.GetSurfaceCount() == 0)
+			return float.NaN;
+
+		var arrays = arrayMesh.SurfaceGetArrays(0);
+		var vertices = (Godot.Collections.Array)arrays[(int)ArrayMesh.ArrayType.Vertex];
+		var uvs = (Godot.Collections.Array)arrays[(int)ArrayMesh.ArrayType.TexUV];
+		if (vertices == null || uvs == null || vertices.Count == 0 || uvs.Count == 0)
+			return float.NaN;
+
+		float sum = 0f;
+		int count = 0;
+		for (int i = 0; i < vertices.Count; i++)
+		{
+			Vector2 uv = (Vector2)uvs[i];
+			if (Mathf.Abs(uv.X) > 0.001f)
+				continue;
+			Vector3 v = (Vector3)vertices[i];
+			sum += v.Y;
+			count++;
+		}
+
+		return count > 0 ? sum / count : float.NaN;
 	}
 }

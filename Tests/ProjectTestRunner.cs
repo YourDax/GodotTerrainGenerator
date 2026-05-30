@@ -12,9 +12,9 @@ public sealed class ProjectTestRunner
 		// Запускаем только активные наборы тестов, которые реально входят в текущий прогон.
 		var steps = new (string Name, Func<TestGroupResult> Run)[]
 		{
-			("Модульные тесты", () => new ProjectModuleTestSuite().Run()),
-			("Функциональные тесты", () => new ProjectFunctionalTestSuite().Run()),
-			("Тестирование производительности", () => new ProjectPerformanceTestSuite().Run()),
+			("Модульные тесты (Godot)", () => new ProjectModuleTestSuite().Run()),
+			("Функциональные тесты (Godot)", () => new ProjectFunctionalTestSuite().Run()),
+			("Тестирование производительности (Godot)", () => new ProjectPerformanceTestSuite().Run()),
 		};
 		var groups = new List<TestGroupResult>(steps.Length);
 		for (int i = 0; i < steps.Length; i++)

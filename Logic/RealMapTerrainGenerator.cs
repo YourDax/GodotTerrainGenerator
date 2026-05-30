@@ -184,7 +184,7 @@ public static class RealMapTerrainGenerator
 		{
 			http.Timeout = TimeSpan.FromSeconds(10);
 			http.DefaultRequestHeaders.Add("User-Agent", "GodotTerrainPlugin/1.0");
-			var osm = new OsmOverpassClient(http);
+			var osm = new OsmOverpassClient(http, infoLogger: GD.Print, errorLogger: GD.PrintErr);
 			waterPolys = await osm.FetchWaterPolygonsAsync(south, west, north, east, 10, (p, s) => progressCallback?.Invoke(92f + p * 0.03f, s));
 			trees = await osm.FetchTreeNodesAsync(south, west, north, east, 10, (p, s) => progressCallback?.Invoke(95f + p * 0.03f, s));
 		}
@@ -282,7 +282,7 @@ public static class RealMapTerrainGenerator
 		using var http = new System.Net.Http.HttpClient();
 		http.Timeout = TimeSpan.FromSeconds(REQUEST_TIMEOUT_SECONDS);
 		http.DefaultRequestHeaders.Add("User-Agent", "GodotTerrainPlugin/1.0");
-		var topo = new OpenTopoDataClient(http);
+		var topo = new OpenTopoDataClient(http, infoLogger: GD.Print, errorLogger: GD.PrintErr);
 		return await topo.FetchHeightsGridAsync(
 			north, west, south, east,
 			resolution,

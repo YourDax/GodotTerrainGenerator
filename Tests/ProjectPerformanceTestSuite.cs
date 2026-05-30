@@ -1,9 +1,8 @@
 using Godot;
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Diagnostics;
-using System.Net;
-using System.Net.Http;
-using System.Text;
 
 public sealed class ProjectPerformanceTestSuite
 {
@@ -12,35 +11,35 @@ public sealed class ProjectPerformanceTestSuite
 	{
 		var group = new TestGroupResult(
 			"Тестирование производительности",
-			"Проверяется создание мешей разных размеров, применение API и несколько вариантов параметров генерации.",
+			"Проверяется Godot-производительность: создание мешей, применение текстур и экспорт сцен.",
 			"Все операции должны выполняться стабильно и укладываться в разумное время без исключений.");
 
 		var watch = Stopwatch.StartNew();
 
-		group.Operations.Add(TestTools.RunOperation("PR-1", "Замеряется генерация меша малого размера.", "Меш должен быть создан быстро и без пустых поверхностей.", () =>
+		group.Operations.Add(TestTools.RunOperation("PR-1", "Замеряется генерация меша 30x30.", "Меш должен быть создан быстро и без пустых поверхностей.", () =>
 		{
 			var generator = new RandomTerrainGenerator();
-			Mesh mesh = generator.GenerateMesh(16, 16, -3f, 10f, 8, 0.7f, false, 0.35f, 1, 2, 3, 4);
+			Mesh mesh = generator.GenerateMesh(30, 30, -3f, 10f, 15, 0.7f, false, 0.35f, 1, 2, 3, 4);
 			if (mesh == null || mesh.GetSurfaceCount() == 0)
-				throw new InvalidOperationException("Small mesh generation failed.");
+				throw new InvalidOperationException("30x30 mesh generation failed.");
 			return $"Surfaces={mesh.GetSurfaceCount()}";
 		}));
 
-		group.Operations.Add(TestTools.RunOperation("PR-2", "Замеряется генерация меша среднего размера.", "Меш должен строиться для среднего объема данных.", () =>
+		group.Operations.Add(TestTools.RunOperation("PR-2", "Замеряется генерация меша 50x50.", "Меш должен строиться для среднего объема данных.", () =>
 		{
 			var generator = new RandomTerrainGenerator();
-			Mesh mesh = generator.GenerateMesh(32, 24, -5f, 14f, 16, 0.8f, true, 0.35f, 11, 12, 13, 14);
+			Mesh mesh = generator.GenerateMesh(50, 50, -5f, 14f, 25, 0.8f, true, 0.35f, 11, 12, 13, 14);
 			if (mesh == null || mesh.GetSurfaceCount() == 0)
-				throw new InvalidOperationException("Medium mesh generation failed.");
+				throw new InvalidOperationException("50x50 mesh generation failed.");
 			return $"Surfaces={mesh.GetSurfaceCount()}";
 		}));
 
-		group.Operations.Add(TestTools.RunOperation("PR-3", "Замеряется генерация меша большого размера.", "Крупный меш должен создаваться без исключения и с валидной геометрией.", () =>
+		group.Operations.Add(TestTools.RunOperation("PR-3", "Замеряется генерация меша 80x80.", "Крупный меш должен создаваться без исключения и с валидной геометрией.", () =>
 		{
 			var generator = new RandomTerrainGenerator();
-			Mesh mesh = generator.GenerateMesh(48, 40, -8f, 18f, 20, 0.9f, true, 0.45f, 21, 22, 23, 24);
+			Mesh mesh = generator.GenerateMesh(80, 80, -8f, 18f, 32, 0.9f, true, 0.45f, 21, 22, 23, 24);
 			if (mesh == null || mesh.GetSurfaceCount() == 0)
-				throw new InvalidOperationException("Large mesh generation failed.");
+				throw new InvalidOperationException("80x80 mesh generation failed.");
 			return $"Surfaces={mesh.GetSurfaceCount()}";
 		}));
 
@@ -52,32 +51,6 @@ public sealed class ProjectPerformanceTestSuite
 			if (!FileAccess.FileExists(outputPath))
 				throw new InvalidOperationException("Performance texture was not saved.");
 			return "Высотная текстура сохранена";
-		}));
-
-		group.Operations.Add(TestTools.RunOperation("PR-5", "Проверяется производительность API-клиентов без сети.", "OpenTopoData и OSM должны быстро обработать подготовленные ответы.", () =>
-		{
-			var topoHttp = TestTools.CreateHttpClient(request =>
-			{
-				var json = "{\"results\":[{\"elevation\":1},{\"elevation\":2},{\"elevation\":3},{\"elevation\":4}]}";
-				return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-			});
-			var osmHttp = TestTools.CreateHttpClient(request =>
-			{
-				string body = request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-				string decoded = Uri.UnescapeDataString(body);
-				string json = decoded.Contains("natural\"=\"tree")
-					? "{\"elements\":[{\"type\":\"node\",\"lat\":1,\"lon\":2,\"tags\":{\"natural\":\"tree\"}}]}"
-					: "{\"elements\":[{\"type\":\"way\",\"geometry\":[{\"lat\":1,\"lon\":1},{\"lat\":1,\"lon\":2},{\"lat\":2,\"lon\":2}],\"tags\":{\"natural\":\"water\"}}]}";
-				return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-			});
-			var topo = new OpenTopoDataClient(topoHttp);
-			var osm = new OsmOverpassClient(osmHttp);
-			float[,] heights = topo.FetchHeightsGridAsync(60f, 30f, 59f, 31f, 2, 4, 1, 0, 1, 0, TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
-			var trees = osm.FetchTreeNodesAsync(59f, 30f, 60f, 31f, 10).GetAwaiter().GetResult();
-			var water = osm.FetchWaterPolygonsAsync(59f, 30f, 60f, 31f, 10).GetAwaiter().GetResult();
-			if (heights == null || trees.Count == 0 || water.Count == 0)
-				throw new InvalidOperationException("API clients did not return valid data.");
-			return $"Heights={heights.GetLength(0)}x{heights.GetLength(1)}, Trees={trees.Count}, Water={water.Count}";
 		}));
 
 		group.Operations.Add(TestTools.RunOperation("PR-6", "Генерация и экспорт сцены: различные размеры и параметры → GLTFDocument без падений.", "Экспортные сцены подготовлены для разных размеров мешей успешно.", () =>
@@ -121,62 +94,139 @@ public sealed class ProjectPerformanceTestSuite
 			return "Текстуры применены для всех тестовых размеров";
 		}));
 
-		group.Operations.Add(TestTools.RunOperation("PR-9", "Проверка производительности OpenTopoData API при загрузке больших сеток.", "API оббабатывает данные без задержек и деградации производительности.", () =>
+		group.Operations.Add(TestTools.RunOperation("PR-11", "Проверяется нормализация и фильтрация карты высот.", "Карта высот нормализована, а slope-путь текстурирования отрабатывает без ошибок.", () =>
 		{
-			var http = TestTools.CreateHttpClient(request =>
+			var heights = TestTools.CreateHeightGrid(8, 8, (x, z) => x * 2f + z);
+			TerrainMath.NormalizeToRange(heights, -1f, 1f);
+			float min = float.MaxValue;
+			float max = float.MinValue;
+			for (int x = 0; x < heights.GetLength(0); x++)
 			{
-				// Симуляция большой сетки высот
-				var json = new StringBuilder();
-				json.Append("{\"results\":[");
-				for (int i = 0; i < 100; i++)
+				for (int z = 0; z < heights.GetLength(1); z++)
 				{
-					if (i > 0) json.Append(',');
-					json.Append("{\"elevation\":").Append(100 + (i % 20)).Append('}');
+					min = Mathf.Min(min, heights[x, z]);
+					max = Mathf.Max(max, heights[x, z]);
 				}
-				json.Append("]}");
-				return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json") };
-			});
-			var client = new OpenTopoDataClient(http);
-			float[,] heights = client.FetchHeightsGridAsync(60f, 30f, 58f, 32f, 10, 10, 1, 0, 1, 0, TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
-			if (heights == null || heights.Length == 0)
-				throw new InvalidOperationException("Large height grid was not loaded.");
-			return $"Загруженная сетка: {heights.GetLength(0)}x{heights.GetLength(1)}";
+			}
+
+			if (min > -0.99f || max < 0.99f)
+				throw new InvalidOperationException("Height normalization did not span the expected range.");
+
+			var terrain = TestTools.CreateSampleTerrainInstance(24, 24, 12, 8);
+			string outputPath = TestTools.CreateSampleTexturePath("perf_normalized_slope.png");
+			TerrainTexturePainter.ApplyHeightTexture(
+				terrain,
+				-4f,
+				14f,
+				TerraConfig.SandTexturePath,
+				TerraConfig.GrassTexturePath,
+				TerraConfig.RockTexturePath,
+				outputPath,
+				0.35f,
+				0.65f,
+				24,
+				24,
+				1,
+				0.7f,
+				null,
+				null,
+				null,
+				null,
+				false).GetAwaiter().GetResult();
+
+			if (!FileAccess.FileExists(outputPath))
+				throw new InvalidOperationException("Slope texture output was not saved.");
+			return $"min={min.ToString("0.###", CultureInfo.InvariantCulture)}, max={max.ToString("0.###", CultureInfo.InvariantCulture)}";
 		}));
 
-		group.Operations.Add(TestTools.RunOperation("PR-10", "Проверка производительности OSM Overpass API при обработке деревьев и воды.", "OSM данные обрабатыются эффективно для крупных географических областей.", () =>
+		group.Operations.Add(TestTools.RunOperation("PR-12", "Проверяется применение дорожной маски к текстуре.", "Дорожная маска накладывается и результат сохраняется на диск.", () =>
 		{
-			var http = TestTools.CreateHttpClient(request =>
+			var terrain = TestTools.CreateSampleTerrainInstance(32, 32, 16, 9);
+			var roadMask = new float[32, 32];
+			TerrainMath.RasterizeRoadMask(roadMask, new List<Vector2> { new Vector2(-12f, 0f), new Vector2(12f, 0f) }, 32, 32, 4f);
+			string outputPath = TestTools.CreateSampleTexturePath("perf_road_mask.png");
+			TerrainTexturePainter.ApplyHeightTexture(
+				terrain,
+				-4f,
+				14f,
+				TerraConfig.SandTexturePath,
+				TerraConfig.GrassTexturePath,
+				TerraConfig.RockTexturePath,
+				outputPath,
+				0.35f,
+				0.65f,
+				32,
+				32,
+				0,
+				0.5f,
+				roadMask,
+				TerraConfig.DefaultRoadTexturePath,
+				null,
+				null,
+				false).GetAwaiter().GetResult();
+
+			if (!FileAccess.FileExists(outputPath))
+				throw new InvalidOperationException("Road mask texture output was not saved.");
+			return "Road mask texture saved";
+		}));
+
+		group.Operations.Add(TestTools.RunOperation("PR-13", "Проверяется размещение 100 объектов окружения.", "ScatteredObjects создается и содержит 100 экземпляров.", () =>
+		{
+			var root = new Node3D { Name = "PR13_ScatterRoot" };
+
+			var terrain = TestTools.CreateSampleTerrainInstance(80, 80, 32, 10);
+			terrain.Name = "PR13_Terrain";
+			root.AddChild(terrain);
+
+			string treePath = TestTools.FindFirstExistingResource(
+				$"{TerraConfig.AddonRootPath}/Texture/source/tree.tscn",
+				$"{TerraConfig.AddonRootPath}/Texture/source/tree2.tscn",
+				$"{TerraConfig.AddonRootPath}/Texture/source/bush.tscn");
+			if (string.IsNullOrEmpty(treePath))
+				throw new InvalidOperationException("No scatter scene resource found.");
+
+			var scatter = new Godot.Collections.Dictionary
 			{
-				string body = request.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-				string decoded = Uri.UnescapeDataString(body);
-				if (decoded.Contains("natural\"=\"tree"))
-				{
-					// Симуляция большого количества деревьев
-					var json = new StringBuilder();
-					json.Append("{\"elements\":[");
-					for (int i = 0; i < 50; i++)
+				{ "trees", new Godot.Collections.Dictionary
 					{
-						if (i > 0) json.Append(',');
-						var lat = (59 + i * 0.01f).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-						var lon = (30 + i * 0.01f).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-						json.Append("{\"type\":\"node\",\"lat\":").Append(lat).Append(",\"lon\":").Append(lon).Append(",\"tags\":{\"natural\":\"tree\"}}");
+						{ "enabled", true },
+						{ "count", 100 },
+						{ "paths", new Godot.Collections.Array { treePath } }
 					}
-					json.Append("]}");
-					return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json.ToString(), Encoding.UTF8, "application/json") };
 				}
-				else
-				{
-					// Симуляция больших водных полигонов с правильной структурой
-					var json = "{\"elements\":[{\"type\":\"way\",\"id\":1,\"nodes\":[1,2,3,4,1],\"members\":[],\"geometry\":[{\"lat\":59.0,\"lon\":30.0},{\"lat\":59.0,\"lon\":31.0},{\"lat\":60.0,\"lon\":31.0},{\"lat\":60.0,\"lon\":30.0},{\"lat\":59.0,\"lon\":30.0}],\"tags\":{\"natural\":\"water\"}}]}";
-					return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-				}
-			});
-			var client = new OsmOverpassClient(http);
-			var trees = client.FetchTreeNodesAsync(59f, 30f, 61f, 32f, 20).GetAwaiter().GetResult();
-			var water = client.FetchWaterPolygonsAsync(59f, 30f, 61f, 32f, 20).GetAwaiter().GetResult();
-			if (trees.Count == 0 && water.Count == 0)
-				throw new InvalidOperationException("OSM data was not loaded.");
-			return $"OSM данные: Деревья={trees.Count}, Вода={water.Count}";
+			};
+
+			ObjectScatterPlacer.Scatter(root, terrain, 80, 80, 32, -4f, 14f, 0.0f, null, 32, scatter, null);
+			Node scattered = root.GetNodeOrNull("ScatteredObjects");
+			if (scattered == null)
+				throw new InvalidOperationException("ScatteredObjects node was not created.");
+			if (scattered.GetChildCount() != 100)
+				throw new InvalidOperationException($"Expected 100 scattered objects, got {scattered.GetChildCount()}.");
+			return $"Objects={scattered.GetChildCount()}";
+		}));
+
+		group.Operations.Add(TestTools.RunOperation("PR-14", "Проверяется стыковка continuation чанков.", "Граница нового меша корректируется относительно существующего чанка.", () =>
+		{
+			var root = new Node3D { Name = "PR14_ContinuationRoot" };
+			var source = TestTools.CreateSampleTerrainInstance(24, 24, 12, 11);
+			source.Name = "GeneratedMesh_Chunk_1";
+			root.AddChild(source);
+
+			var ctx = TerrainContinuationService.BuildContinueContext(root, "x+");
+			var targetHeights = TestTools.CreateHeightGrid(12, 12, (x, z) => 20f + x * 0.5f + z * 0.15f);
+			Mesh targetMesh = MeshBuilder.BuildTerrainMesh(targetHeights, 24, 24);
+			if (targetMesh == null || targetMesh.GetSurfaceCount() == 0)
+				throw new InvalidOperationException("Target mesh is invalid.");
+
+			float before = GetSeamAverageY(targetMesh);
+			TerrainContinuationService.ApplyEdgeConstraintToMesh(targetMesh, 12, ctx, false);
+			float after = GetSeamAverageY(targetMesh);
+
+			if (float.IsNaN(before) || float.IsNaN(after))
+				throw new InvalidOperationException("Seam averages are invalid.");
+			if (Math.Abs(after - before) < 0.01f)
+				throw new InvalidOperationException("Continuation seam was not adjusted.");
+			return $"before={before.ToString("0.###", CultureInfo.InvariantCulture)}, after={after.ToString("0.###", CultureInfo.InvariantCulture)}";
 		}));
 
 		watch.Stop();
@@ -189,5 +239,31 @@ public sealed class ProjectPerformanceTestSuite
 		}
 		group.ActualResult = group.Passed ? $"Производительность всех операций подтверждена за {watch.ElapsedMilliseconds}мс" : "Есть медленные или нестабильные операции";
 		return group;
+	}
+
+	private static float GetSeamAverageY(Mesh mesh)
+	{
+		if (mesh is not ArrayMesh arrayMesh || arrayMesh.GetSurfaceCount() == 0)
+			return float.NaN;
+
+		var arrays = arrayMesh.SurfaceGetArrays(0);
+		var vertices = (Godot.Collections.Array)arrays[(int)ArrayMesh.ArrayType.Vertex];
+		var uvs = (Godot.Collections.Array)arrays[(int)ArrayMesh.ArrayType.TexUV];
+		if (vertices == null || uvs == null || vertices.Count == 0 || uvs.Count == 0)
+			return float.NaN;
+
+		float sum = 0f;
+		int count = 0;
+		for (int i = 0; i < vertices.Count; i++)
+		{
+			Vector2 uv = (Vector2)uvs[i];
+			if (Mathf.Abs(uv.X) > 0.001f)
+				continue;
+			Vector3 v = (Vector3)vertices[i];
+			sum += v.Y;
+			count++;
+		}
+
+		return count > 0 ? sum / count : float.NaN;
 	}
 }
