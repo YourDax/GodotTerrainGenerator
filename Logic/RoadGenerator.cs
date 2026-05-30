@@ -32,7 +32,10 @@ public static class RoadGenerator
 		float roadWidth = 2.0f,
 		float waterLevel = 0.0f,
 		float sandGrass = 0.35f,
-		float grassRock = 0.65f
+		float grassRock = 0.65f,
+		float textureRefSourceMaxHeight = 0f,
+		float textureRefBaseY = 0f,
+		float? worldWaterY = null
 	)
 	{
 		GD.Print("Начало генерации маски дорог...");
@@ -48,17 +51,24 @@ public static class RoadGenerator
 			return roadMask;
 		}
 		
-		// Вычисляем уровень воды
-		float waterHeight = Mathf.Lerp(minHeight, maxHeight, waterLevel);
-		float waterSafetyMargin = (maxHeight - minHeight) * 0.05f;
+		float meshPosY = terrainMesh.Position.Y;
+		float heightSpan = textureRefSourceMaxHeight > 0.001f
+			? textureRefSourceMaxHeight
+			: maxHeight - minHeight;
+
+		float waterHeight = worldWaterY.HasValue
+			? meshPosY - worldWaterY.Value
+			: Mathf.Lerp(minHeight, maxHeight, waterLevel);
+		float waterSafetyMargin = heightSpan * 0.05f;
 		float effectiveWaterHeight = waterHeight + waterSafetyMargin;
-		
-		// Вычисляем границы зоны травы
-		float sandGrassHeight = Mathf.Lerp(minHeight, maxHeight, sandGrass);
-		float grassRockHeight = Mathf.Lerp(minHeight, maxHeight, grassRock);
-		float textureBoundaryMargin = (maxHeight - minHeight) * 0.05f;
-		float grassMinHeight = sandGrassHeight + textureBoundaryMargin;
-		float grassMaxHeight = grassRockHeight - textureBoundaryMargin;
+
+		float textureBoundaryMargin = heightSpan * 0.05f;
+		float grassLocalMin = TerrainMath.LocalYFromHeightBlend01(
+			grassRock, meshPosY, minHeight, maxHeight, textureRefSourceMaxHeight, textureRefBaseY);
+		float grassLocalMax = TerrainMath.LocalYFromHeightBlend01(
+			sandGrass, meshPosY, minHeight, maxHeight, textureRefSourceMaxHeight, textureRefBaseY);
+		float grassMinHeight = grassLocalMin + textureBoundaryMargin;
+		float grassMaxHeight = grassLocalMax - textureBoundaryMargin;
 		
 		GD.Print($"Уровень воды: {waterHeight:F2}, с запасом: {effectiveWaterHeight:F2}");
 		GD.Print($"Зона травы: {grassMinHeight:F2} - {grassMaxHeight:F2}");

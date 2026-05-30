@@ -170,4 +170,43 @@ public static class TerrainMath
 			}
 		}
 	}
+
+	// Нормализованная «высота» для текстур (0 = песок, 1 = камень), как в TerrainTexturePainter.
+	// При continuation передаётся эталон исходного чанка, чтобы пороги sand/grass/rock совпадали в мировых координатах.
+	public static float ComputeHeightBlend01(
+		float localVertexY,
+		float meshPositionY,
+		float minHeight,
+		float maxHeight,
+		float textureRefSourceMaxHeight = 0f,
+		float textureRefBaseY = 0f)
+	{
+		if (textureRefSourceMaxHeight > 0.001f)
+		{
+			float worldY = meshPositionY - localVertexY;
+			float h = (textureRefSourceMaxHeight - textureRefBaseY + worldY) / textureRefSourceMaxHeight;
+			return Mathf.Clamp(h, 0f, 1f);
+		}
+
+		float heightRange = maxHeight - minHeight;
+		return heightRange > 0.001f
+			? Mathf.Clamp((maxHeight - localVertexY) / heightRange, 0f, 1f)
+			: 0.5f;
+	}
+
+	// Локальная Y вершины, соответствующая заданному height-blend (обратное к ComputeHeightBlend01 для continuation).
+	public static float LocalYFromHeightBlend01(
+		float heightBlend,
+		float meshPositionY,
+		float minHeight,
+		float maxHeight,
+		float textureRefSourceMaxHeight = 0f,
+		float textureRefBaseY = 0f)
+	{
+		if (textureRefSourceMaxHeight > 0.001f)
+			return textureRefSourceMaxHeight - textureRefBaseY + meshPositionY - heightBlend * textureRefSourceMaxHeight;
+
+		float heightRange = maxHeight - minHeight;
+		return maxHeight - heightBlend * heightRange;
+	}
 }

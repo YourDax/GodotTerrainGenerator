@@ -71,7 +71,7 @@ public sealed class ProjectModuleTestSuite
 					throw new InvalidOperationException("Target mesh is invalid.");
 
 				float before = GetSeamAverageY(targetMesh);
-				TerrainContinuationService.ApplyEdgeConstraintToMesh(targetMesh, 12, ctx, false);
+				TerrainContinuationService.ApplyEdgeConstraintToMesh(targetMesh, 12, ctx, ctx.BaseY, false);
 				float after = GetSeamAverageY(targetMesh);
 
 				if (float.IsNaN(before) || float.IsNaN(after))

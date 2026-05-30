@@ -204,7 +204,6 @@ public sealed partial class ProjectFunctionalTestSuite
 			{
 				var data = new Godot.Collections.Dictionary
 				{
-					{ "min_height", -3f },
 					{ "max_height", 17f },
 					{ "resolution", 64 },
 					{ "sand_grass", 0.22f },

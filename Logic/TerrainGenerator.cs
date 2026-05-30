@@ -115,7 +115,7 @@ public partial class TerrainGenerator : Node3D
 
 			int length = config.Length;
 			int width = config.Width;
-			float minHeight = config.MinHeight;
+			const float minHeight = 0f;
 			float maxHeight = config.MaxHeight;
 			float sandGrass = config.SandGrass;
 			float grassRock = config.GrassRock;
@@ -149,9 +149,6 @@ public partial class TerrainGenerator : Node3D
 					return;
 				}
 
-				minHeight = continuation.SourceMinHeight;
-				maxHeight = continuation.SourceMaxHeight;
-
 				if (continuation.Direction == TerrainContinuationService.ContinueDirection.XPlus || continuation.Direction == TerrainContinuationService.ContinueDirection.XMinus)
 				{
 					width = continuation.SourceWidth;
@@ -166,12 +163,6 @@ public partial class TerrainGenerator : Node3D
 				if (ContinuationDebugLogging && resolution != oldResolution)
 				{
 					GD.Print($"CONT resolution adjusted: requested={oldResolution}, suggested={continuation.SuggestedResolution}, final={resolution}");
-				}
-
-				if (continuation.SourceWaterY.HasValue)
-				{
-					float range = Mathf.Max(0.0001f, maxHeight - minHeight);
-					waterLevel = Mathf.Clamp(((continuation.SourceWaterY.Value - minHeight) / range) + 0.5f, 0.0f, 1.0f);
 				}
 			}
 
@@ -228,7 +219,7 @@ public partial class TerrainGenerator : Node3D
 
 			if (continuation != null)
 			{
-				TerrainContinuationService.ApplyEdgeConstraintToMesh(mesh, resolution, continuation, ContinuationDebugLogging);
+				TerrainContinuationService.ApplyEdgeConstraintToMesh(mesh, resolution, continuation, yOffset, ContinuationDebugLogging);
 			}
 
 			if (mesh == null)
@@ -292,6 +283,10 @@ public partial class TerrainGenerator : Node3D
 			int maxMapSize = Mathf.Max(length, width);
 			int texRes = TerraConfig.GetTextureResolutionForSize(maxMapSize);
 
+			float textureRefSourceMax = continuation?.SourceMaxHeight ?? 0f;
+			float textureRefBaseY = continuation?.BaseY ?? 0f;
+			float worldWater = continuation?.SourceWaterY ?? (Mathf.Lerp(minHeight, maxHeight, waterLevel) - yOffset);
+
 			float[,] roadMask = null;
 			if (config.GenerateRoads)
 			{
@@ -313,7 +308,10 @@ public partial class TerrainGenerator : Node3D
 					roadWidth,
 					waterLevel,
 					sandGrass,
-					grassRock
+					grassRock,
+					textureRefSourceMax,
+					textureRefBaseY,
+					continuation != null ? worldWater : null
 				);
 
 				if (roadMask != null)
@@ -362,7 +360,10 @@ public partial class TerrainGenerator : Node3D
 				{
 					CallDeferred(MethodName.EmitProgressSignal, progress, status);
 				},
-				() => _cancelRequested
+				() => _cancelRequested,
+				true,
+				textureRefSourceMax,
+				textureRefBaseY
 			);
 
 			if (IsGenerationCanceled())
@@ -374,8 +375,6 @@ public partial class TerrainGenerator : Node3D
 
 			EmitProgressSignal(80.0f, "Создание воды...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-			float worldWater = continuation?.SourceWaterY ?? (Mathf.Lerp(minHeight, maxHeight, waterLevel) - yOffset);
 
 			var water = random.GenerateWaterPlane(length, width, worldWater);
 			water.Position = new Vector3(meshInstance.Position.X, worldWater, meshInstance.Position.Z);

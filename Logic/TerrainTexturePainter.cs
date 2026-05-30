@@ -45,7 +45,9 @@ public static class TerrainTexturePainter
 		string roadPath = null,
 		Action<float, string> progressCallback = null,
 		Func<bool> cancelRequested = null,
-		bool allowYield = true
+		bool allowYield = true,
+		float textureRefSourceMaxHeight = 0f,
+		float textureRefBaseY = 0f
 	)
 	{
 		if (cancelRequested != null && cancelRequested())
@@ -222,7 +224,11 @@ public static class TerrainTexturePainter
 		var grassSampler = new TextureSampler(grassImg, texRes, tileScaleX, tileScaleZ);
 		var rockSampler = new TextureSampler(rockImg, texRes, tileScaleX, tileScaleZ);
 		TextureSampler roadSampler = roadImg != null ? new TextureSampler(roadImg, texRes, tileScaleX, tileScaleZ) : null;
-		float[,] normalizedSlopeMap = textureMode == 1 ? BuildNormalizedSlopeMap(heightMap, meshRes, maxHeight - minHeight) : null;
+		float slopeHeightRange = textureRefSourceMaxHeight > 0.001f
+			? textureRefSourceMaxHeight
+			: maxHeight - minHeight;
+		float[,] normalizedSlopeMap = textureMode == 1 ? BuildNormalizedSlopeMap(heightMap, meshRes, slopeHeightRange) : null;
+		float meshPosY = meshInstance.Position.Y;
 		
 		GD.Print($"Размер карты: {mapSizeX}x{mapSizeZ}, Разрешение текстуры: {texRes}x{texRes}");
 		GD.Print($"Тайлинг текстур: X={tileScaleX:F2}, Z={tileScaleZ:F2}, base={tileScale:F2}");
@@ -322,10 +328,13 @@ public static class TerrainTexturePainter
 				float h1 = Mathf.Lerp(h01, h11, fx);
 				float height = Mathf.Lerp(h0, h1, fz);
 
-				// Вычисляем нормализованную высоту (0 = низ, 1 = верх)
-				float heightRange = maxHeight - minHeight;
-				float h = heightRange > 0.001f ? (maxHeight - height) / heightRange : 0.5f;
-				h = Mathf.Clamp(h, 0f, 1f);
+				float h = TerrainMath.ComputeHeightBlend01(
+					height,
+					meshPosY,
+					minHeight,
+					maxHeight,
+					textureRefSourceMaxHeight,
+					textureRefBaseY);
 
 				// Получаем пиксели с раздельным тайлингом по X/Z, чтобы плотность
 				// текстуры была одинаковой на метр даже у вытянутых карт.

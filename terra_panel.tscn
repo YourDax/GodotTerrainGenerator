@@ -180,21 +180,6 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
 text = "Z - ширина"
 
-[node name="HBoxContainer Min Y" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="MinYbox" type="SpinBox" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Min Y"]
-custom_minimum_size = Vector2(260, 0)
-layout_mode = 2
-size_flags_horizontal = 0
-
-[node name="Label" type="Label" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Min Y"]
-custom_minimum_size = Vector2(190, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
-text = "Y - мин. высота"
-
 [node name="HBoxContainer Max Y" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2
 theme_override_constants/separation = 8
@@ -210,7 +195,7 @@ value = 50.0
 custom_minimum_size = Vector2(190, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.88, 0.93, 0.98, 1)
-text = "Y - макс. высота"
+text = "Y - высота"
 
 [node name="HBoxContainer SandGrass" type="HBoxContainer" parent="MainScroll/MainContent/SectionMesh/Body/VBoxContainer"]
 layout_mode = 2

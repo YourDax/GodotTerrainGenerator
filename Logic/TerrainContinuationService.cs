@@ -192,7 +192,8 @@ public static class TerrainContinuationService
 	}
 
 	// Подгоняет край нового меша под уже существующий frontier, чтобы стык был гладким.
-	public static void ApplyEdgeConstraintToMesh(Mesh mesh, int resolution, ContinueContext ctx, bool debugLogging = false)
+	// chunkPositionY — будущая world Y позиция нового чанка (обычно maxHeight * 0.5).
+	public static void ApplyEdgeConstraintToMesh(Mesh mesh, int resolution, ContinueContext ctx, float chunkPositionY, bool debugLogging = false)
 	{
 		if (mesh == null || ctx == null || ctx.FrontierSegments == null || ctx.FrontierSegments.Count == 0)
 			throw new InvalidOperationException("Нет данных frontier для стыковки continuation.");
@@ -207,12 +208,12 @@ public static class TerrainContinuationService
 		int lockRows = Mathf.Clamp(Mathf.RoundToInt(resolution * 0.06f), 4, 16);
 		lockRows = Mathf.Clamp(lockRows, 2, availableRows);
 		int blendRows = Mathf.Clamp(Mathf.RoundToInt(resolution * 0.22f), lockRows + 6, Mathf.Max(lockRows + 6, Mathf.RoundToInt(resolution * 0.35f)));
-		float[,] edgeStrip = BuildCombinedEdgeStrip(ctx, resolution, lockRows, debugLogging);
-		float sourceRange = Mathf.Max(0.001f, ctx.SourceMaxHeight - ctx.SourceMinHeight);
+		float[,] edgeStripWorld = BuildCombinedEdgeStrip(ctx, resolution, lockRows, debugLogging);
+		float worldRange = EstimateWorldHeightRange(edgeStripWorld, ctx);
 		if (debugLogging)
 		{
 			int mid = Mathf.Clamp((resolution - 1) / 2, 0, resolution - 1);
-			GD.Print($"CONT seam dir={ctx.DirectionText} lockRows={lockRows} blendRows={blendRows} strip[r0]=[{edgeStrip[0, 0]:F2},{edgeStrip[0, mid]:F2},{edgeStrip[0, resolution - 1]:F2}]");
+			GD.Print($"CONT seam dir={ctx.DirectionText} lockRows={lockRows} blendRows={blendRows} chunkY={chunkPositionY:F2} stripWorld[r0]=[{edgeStripWorld[0, 0]:F2},{edgeStripWorld[0, mid]:F2},{edgeStripWorld[0, resolution - 1]:F2}]");
 		}
 
 		float[] lockSourceSum = new float[resolution];
@@ -240,9 +241,10 @@ public static class TerrainContinuationService
 		{
 			if (lockSourceCount[a] <= 0)
 				continue;
-			float lockSource = lockSourceSum[a] / lockSourceCount[a];
-			float lockTarget = ComputeExtrapolatedLockHeight(edgeStrip, lockRows - 1, a, sourceRange);
-			lockRowOffset[a] = lockTarget - lockSource;
+			float lockSourceLocal = lockSourceSum[a] / lockSourceCount[a];
+			float lockTargetWorld = ComputeExtrapolatedLockHeight(edgeStripWorld, lockRows - 1, a, worldRange);
+			float lockTargetLocal = chunkPositionY - lockTargetWorld;
+			lockRowOffset[a] = lockTargetLocal - lockSourceLocal;
 			hasOffset[a] = true;
 		}
 
@@ -303,7 +305,7 @@ public static class TerrainContinuationService
 			absOffsets[a] = Mathf.Abs(lockRowOffset[a]);
 		Array.Sort(absOffsets);
 		float p90Abs = absOffsets[Mathf.Clamp(Mathf.FloorToInt((absOffsets.Length - 1) * 0.90f), 0, absOffsets.Length - 1)];
-		float allowedSlopePerRow = Mathf.Max(0.55f, sourceRange * 0.006f);
+		float allowedSlopePerRow = Mathf.Max(0.55f, worldRange * 0.006f);
 		int adaptiveBlendRows = Mathf.Clamp(
 			Mathf.CeilToInt(p90Abs / allowedSlopePerRow) + lockRows,
 			lockRows + 6,
@@ -313,7 +315,7 @@ public static class TerrainContinuationService
 
 		if (debugLogging)
 		{
-			GD.Print($"CONT seam morph: sourceRange={sourceRange:F2}, lockRows={lockRows}, blendRows={blendRows}, slopePerRow={allowedSlopePerRow:F2}");
+			GD.Print($"CONT seam morph: worldRange={worldRange:F2}, lockRows={lockRows}, blendRows={blendRows}, slopePerRow={allowedSlopePerRow:F2}");
 			AppendDebugLog(true, DescribeOffsetStats("lockRow", lockRowOffset));
 			AppendDebugLog(true, $"offsets[morph] p90Abs={p90Abs:F3} allowedSlopePerRow={allowedSlopePerRow:F3} lockRows={lockRows} blendRows={blendRows}");
 			AppendDebugLog(true, DescribeTopOffsetSamples("lockRow", lockRowOffset, 8));
@@ -332,7 +334,8 @@ public static class TerrainContinuationService
 
 			if (dist < lockRows)
 			{
-				v.Y = ComputeExtrapolatedLockHeight(edgeStrip, dist, axis, sourceRange);
+				float targetWorldY = ComputeExtrapolatedLockHeight(edgeStripWorld, dist, axis, worldRange);
+				v.Y = chunkPositionY - targetWorldY;
 				verticesArray[i] = v;
 				continue;
 			}
@@ -357,7 +360,37 @@ public static class TerrainContinuationService
 		}
 	}
 
-	// Экстраполирует высоту для фиксирующего края на основе первого ряда strip.
+	// Оценивает вертикальный диапазон шва в мировых координатах.
+	private static float EstimateWorldHeightRange(float[,] edgeStripWorld, ContinueContext ctx)
+	{
+		float min = float.MaxValue;
+		float max = float.MinValue;
+		if (edgeStripWorld != null)
+		{
+			for (int r = 0; r < edgeStripWorld.GetLength(0); r++)
+			{
+				for (int a = 0; a < edgeStripWorld.GetLength(1); a++)
+				{
+					float v = edgeStripWorld[r, a];
+					if (v < min) min = v;
+					if (v > max) max = v;
+				}
+			}
+		}
+
+		if (min > max)
+		{
+			min = ctx.SourceMinHeight;
+			max = ctx.SourceMaxHeight;
+		}
+
+		float range = max - min;
+		if (range < 0.001f)
+			range = Mathf.Max(0.001f, ctx.SourceMaxHeight - ctx.SourceMinHeight);
+		return range;
+	}
+
+	// Экстраполирует высоту для фиксирующего края на основе первого ряда strip (world Y).
 	private static float ComputeExtrapolatedLockHeight(float[,] edgeStrip, int dist, int axis, float sourceRange)
 	{
 		int rows = edgeStrip.GetLength(0);
@@ -487,7 +520,7 @@ public static class TerrainContinuationService
 	// Вычисляет позицию нового чанка относительно уже существующего frontier.
 	public static Vector3 ComputeContinuationPosition(ContinueContext ctx, int newLength, int newWidth, float yOffset)
 	{
-		float targetY = ctx.BaseY;
+		float targetY = yOffset;
 		return ctx.Direction switch
 		{
 			ContinueDirection.XPlus => new Vector3(ctx.FrontierFaceCoord + (newLength * 0.5f), targetY, ctx.AxisCenter),
@@ -853,14 +886,16 @@ public static class TerrainContinuationService
 			int segSamples = segment.EdgeRows.GetLength(1);
 			float segIdx = segT * (segSamples - 1);
 
+			float meshPosY = segment.Mesh.Position.Y;
 			for (int r = 0; r < rows; r++)
 			{
-				strip[r, i] = SampleEdgeRow(segment.EdgeRows, r, segIdx);
+				float localY = SampleEdgeRow(segment.EdgeRows, r, segIdx);
+				strip[r, i] = meshPosY - localY;
 			}
 
 			if (debugLogging && (i == 0 || i == targetResolution / 2 || i == targetResolution - 1))
 			{
-				GD.Print($"CONT strip-map i={i} axisWorld={worldAxis:F2} seg=[{segment.AxisMin:F2}..{segment.AxisMax:F2}] segIdx={segIdx:F2} r0={strip[0, i]:F2}");
+				GD.Print($"CONT strip-map i={i} axisWorld={worldAxis:F2} seg=[{segment.AxisMin:F2}..{segment.AxisMax:F2}] segIdx={segIdx:F2} r0world={strip[0, i]:F2}");
 			}
 		}
 		return strip;

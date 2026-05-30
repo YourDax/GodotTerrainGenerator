@@ -15,7 +15,6 @@ signal export_blender_requested(target_dir)
 
 @onready var length_field = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer X/Xbox"
 @onready var width_field = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Z/Zbox"
-@onready var min_height_field = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Min Y/MinYbox"
 @onready var max_height_field = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer Max Y/MaxYbox"
 @onready var sand_grass_field = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer SandGrass/SandGrass"
 @onready var grass_rock_field = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainer/HBoxContainer GrassRock/GrassRock"
@@ -78,6 +77,17 @@ const SCATTER_DEFAULT_RELATIVE_PATHS := {
 	],
 	"other": [],
 }
+
+const DEFAULT_SAND_GRASS := 0.35
+const DEFAULT_GRASS_ROCK := 0.65
+const DEFAULT_WATER_LEVEL := 0.35
+const DEFAULT_SMOOTHING := 0.5
+const DEFAULT_SLOPE_BLEND := 0.5
+const DEFAULT_TEXTURE_MODE := 0
+const DEFAULT_REALMAP_WATER_LEVEL := 0.15
+const DEFAULT_REALMAP_OBJECT_SPACING := 0.7
+const DEFAULT_RESOLUTION_MODE := 0
+const TERRAIN_MIN_HEIGHT := 0.0
 
 @onready var real_map_check = $"MainScroll/MainContent/SectionMode/Body/RealMapCheck"
 @onready var leftuplat_input = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/HBoxContainerLeftUpLat/LeftUpLat"
@@ -422,6 +432,7 @@ func _on_file_selected(path):
 
 func _on_real_map_toggled(pressed: bool):
 	# Переключает интерфейс между random и real-map режимами.
+	_reset_non_numeric_settings()
 	if pressed:
 		_show_realmap_mode()
 	else:
@@ -431,6 +442,68 @@ func _on_real_map_toggled(pressed: bool):
 	var island_row = random_block.get_node_or_null("HBoxContainerIsland")
 	if island_row:
 		island_row.visible = not pressed
+
+func _reset_non_numeric_settings() -> void:
+	# Сбрасывает все настройки, кроме размеров карты, разрешения, max Y и координат bbox.
+	sand_grass_field.value = DEFAULT_SAND_GRASS
+	grass_rock_field.value = DEFAULT_GRASS_ROCK
+	water_level_field.value = DEFAULT_WATER_LEVEL
+	if smoothing_slider:
+		smoothing_slider.value = DEFAULT_SMOOTHING
+	if texture_mode_selector:
+		texture_mode_selector.selected = DEFAULT_TEXTURE_MODE
+		_update_texture_mode_ui()
+	if slope_blend_slider:
+		slope_blend_slider.value = DEFAULT_SLOPE_BLEND
+	if island_check:
+		island_check.button_pressed = false
+	if roads_check:
+		roads_check.button_pressed = false
+	if road_texture_path_edit:
+		road_texture_path_edit.text = ""
+	texture_save_path = ""
+	if continue_generation_check:
+		continue_generation_check.button_pressed = false
+	_update_continue_generation_ui()
+	if location_presets_button:
+		location_presets_button.selected = 0
+	if resolution_mode_button:
+		resolution_mode_button.selected = DEFAULT_RESOLUTION_MODE
+	if realmap_water_level_spin:
+		realmap_water_level_spin.value = DEFAULT_REALMAP_WATER_LEVEL
+	if realmap_object_spacing_spin:
+		realmap_object_spacing_spin.value = DEFAULT_REALMAP_OBJECT_SPACING
+	if realmap_tex_sand_check:
+		realmap_tex_sand_check.button_pressed = true
+	if realmap_tex_grass_check:
+		realmap_tex_grass_check.button_pressed = true
+	if realmap_tex_rock_check:
+		realmap_tex_rock_check.button_pressed = true
+	if realmap_custom_paths_check:
+		realmap_custom_paths_check.button_pressed = false
+	if realmap_sand_path_edit:
+		realmap_sand_path_edit.text = ""
+	if realmap_grass_path_edit:
+		realmap_grass_path_edit.text = ""
+	if realmap_rock_path_edit:
+		realmap_rock_path_edit.text = ""
+	_update_realmap_texture_rows_visibility()
+	if random_tex_sand_check:
+		random_tex_sand_check.button_pressed = true
+	if random_tex_grass_check:
+		random_tex_grass_check.button_pressed = true
+	if random_tex_rock_check:
+		random_tex_rock_check.button_pressed = true
+	if random_custom_paths_check:
+		random_custom_paths_check.button_pressed = false
+	if random_sand_path_edit:
+		random_sand_path_edit.text = ""
+	if random_grass_path_edit:
+		random_grass_path_edit.text = ""
+	if random_rock_path_edit:
+		random_rock_path_edit.text = ""
+	_update_random_texture_rows_visibility()
+	_reset_scatter_defaults()
 
 func _show_random_mode():
 	# Показывает controls для процедурной генерации.
@@ -839,10 +912,6 @@ func apply_continue_source_settings(data: Dictionary) -> void:
 	if data == null or data.is_empty():
 		return
 
-	if data.has("min_height"):
-		min_height_field.value = float(data["min_height"])
-	if data.has("max_height"):
-		max_height_field.value = float(data["max_height"])
 	if data.has("resolution"):
 		resolution_field.value = int(data["resolution"])
 	if data.has("sand_grass"):
@@ -983,6 +1052,21 @@ func _add_scatter_category_block(cat_key: String, title: String) -> void:
 	}
 	spin_variants.value_changed.connect(func(_v: float) -> void: _rebuild_scatter_rows(cat_key))
 	_rebuild_scatter_rows(cat_key)
+
+func _reset_scatter_defaults() -> void:
+	# Возвращает scatter-настройки к значениям по умолчанию.
+	for cat_key in _scatter_ui.keys():
+		var ui: Dictionary = _scatter_ui[cat_key]
+		var check: CheckBox = ui.get("check")
+		var count: SpinBox = ui.get("count")
+		var variants: SpinBox = ui.get("variants")
+		if check:
+			check.button_pressed = false
+		if count:
+			count.value = 20
+		if variants:
+			variants.value = 1
+		_rebuild_scatter_rows(cat_key)
 
 func _rebuild_scatter_rows(cat_key: String) -> void:
 	# Пересобирает строки выбора моделей, если изменилось число вариантов.
@@ -1130,7 +1214,7 @@ func _on_generate_button_pressed() -> void:
 	var config := {
 		"length": int(length_field.value),
 		"width": int(width_field.value),
-		"min_height": float(min_height_field.value),
+		"min_height": TERRAIN_MIN_HEIGHT,
 		"max_height": float(max_height_field.value),
 		"sand_grass": float(sand_grass_field.value),
 		"grass_rock": float(grass_rock_field.value),

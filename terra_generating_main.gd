@@ -131,7 +131,6 @@ func _build_continue_source_settings(direction: String) -> Dictionary:
 		"source_length": length,
 		"source_width": width,
 		"min_height": min_h,
-		"max_height": max_h,
 		"resolution": resolution,
 		"sand_grass": clamp(sand_grass_sum, 0.0, 1.0),
 		"grass_rock": clamp(grass_rock_sum, 0.0, 1.0),
