@@ -247,26 +247,30 @@
 
 Тесты разделены на 2 контура:
 
-1. Visual Studio (без запуска Godot)
+### 1. Visual Studio (без запуска Godot)
 
 - Проект: `VisualStudioTests/TerraGenerating.VisualStudioTests.csproj`
-- Текущий набор: перенесенные существующие проверки:
-   - `NM-1..NM-5` из `Tests/ProjectModuleTestSuite.cs` (математика/вспомогательные функции генерации)
-   - `ФТ-9`, `ФТ-10` из `Tests/ProjectFunctionalTestSuite.cs` (OpenTopoData/OSM API)
-   - `PR-5`, `PR-9`, `PR-10` из `Tests/ProjectPerformanceTestSuite.cs` (headless API-производительность)
+- Файлы: `ProjectModuleMathTests.cs`, `ProjectApiClientTests.cs`
 - Запуск в терминале: `dotnet test VisualStudioTests/TerraGenerating.VisualStudioTests.csproj`
-- Запуск в Visual Studio: откройте `VisualStudioTests/TerraGenerating.VisualStudioTests.csproj` и используйте Test Explorer.
+- Запуск в Visual Studio: откройте `VisualStudioTests/TerraGenerating.VisualStudioTests.sln` и используйте Test Explorer.
 
-2. Только Godot (требуют runtime/сцены/ресурсы)
+| ID | Файл | Что проверяет |
+|----|------|---------------|
+| NM-1..NM-5 | `ProjectModuleMathTests.cs` | Нормализация высот, билинейная интерполяция, режимы разрешения, координаты, растеризация дорожной маски |
+| FT-9, FT-10 | `ProjectApiClientTests.cs` | Парсинг JSON OpenTopoData и OSM Overpass (mock HTTP) |
+| PR-5, PR-9, PR-10 | `ProjectApiClientTests.cs` | Headless smoke/performance API-клиентов |
+| API-1 | `ProjectApiClientTests.cs` | OpenTopoData HTTP 503 → fallback с NaN-ячейками |
 
-- `Tests/ProjectTestingSuite.cs`
-- `Tests/test_runner.gd`
-- В кнопочном прогоне остались Godot-зависимые проверки (включая `NM-6..NM-8`, `ФТ-1..ФТ-8`, `ФТ-11..ФТ-16`, `PR-1..PR-4`, `PR-6..PR-8`).
+### 2. Godot runtime (требуют редактор/сцены/ресурсы)
 
-Запуск из редактора Godot:
+- Точка входа: кнопка «Провести тесты» в панели плагина (временно отключена в UI)
+- Отчёт: `Tests/test_report.txt`
+- Файлы: `Tests/ProjectTestingSuite.cs`, `Tests/test_runner.gd`
 
-Нажмите кнопку `🧪 Провести тесты` в самом низу панели плагина.
+| ID | Файл | Что проверяет |
+|----|------|---------------|
+| MB-1, TC-1, TC-2 | `ProjectModuleTestSuite.cs` | MeshBuilder, continuation context и edge constraint |
+| ФТ-1..ФТ-8, ФТ-11..ФТ-19 | `ProjectFunctionalTestSuite.cs` | UI, генерация, экспорт, прогресс, отмена, continuation по всем направлениям |
+| PR-1..PR-4, PR-6..PR-8, PR-11..PR-14 | `ProjectPerformanceTestSuite.cs` | Mesh, текстуры, scatter (100 объектов), continuation seam |
 
-Ожидаемый результат:
-
-появится окно с сообщением `Тесты пройдены успешно.` и будет создан подробный отчет в `Tests/test_report.txt`.
+Ожидаемый результат Godot-прогона: окно `Тесты пройдены успешно.` и подробный отчёт в `Tests/test_report.txt`.

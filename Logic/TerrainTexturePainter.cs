@@ -7,7 +7,9 @@ using System.Threading.Tasks;
 public static class TerrainTexturePainter
 {
 	private static readonly bool VerboseTextureLogs = false;
+	private const int MaxImageCacheEntries = 32;
 	private static readonly Dictionary<string, Image> ImageCache = new();
+	private static readonly List<string> ImageCacheOrder = new();
 
 	// Накладывает финальную terrain texture на mesh и при необходимости сохраняет её на диск.
 	public static async Task ApplyHeightTexture(
@@ -113,7 +115,7 @@ public static class TerrainTexturePainter
 					if (cachedRoad != null && cachedRoad.GetWidth() > 0)
 					{
 						roadImg = cachedRoad;
-						GD.Print($"✅ Текстура дороги загружена из: {path} ({roadImg.GetWidth()}x{roadImg.GetHeight()})");
+						GD.Print($"Текстура дороги загружена из: {path} ({roadImg.GetWidth()}x{roadImg.GetHeight()})");
 						loaded = true;
 						break;
 					}
@@ -122,8 +124,8 @@ public static class TerrainTexturePainter
 			
 			if (!loaded)
 			{
-				GD.PrintErr("❌ Не удалось загрузить текстуру дороги из всех попыток!");
-				GD.PrintErr("❌ Дороги не будут отображаться без текстуры!");
+				GD.PrintErr("Не удалось загрузить текстуру дороги из всех попыток!");
+				GD.PrintErr("Дороги не будут отображаться без текстуры!");
 				roadImg = null;
 			}
 		}
@@ -222,8 +224,8 @@ public static class TerrainTexturePainter
 		TextureSampler roadSampler = roadImg != null ? new TextureSampler(roadImg, texRes, tileScaleX, tileScaleZ) : null;
 		float[,] normalizedSlopeMap = textureMode == 1 ? BuildNormalizedSlopeMap(heightMap, meshRes, maxHeight - minHeight) : null;
 		
-		GD.Print($"📐 Размер карты: {mapSizeX}x{mapSizeZ}, Разрешение текстуры: {texRes}x{texRes}");
-		GD.Print($"🧵 Тайлинг текстур: X={tileScaleX:F2}, Z={tileScaleZ:F2}, base={tileScale:F2}");
+		GD.Print($"Размер карты: {mapSizeX}x{mapSizeZ}, Разрешение текстуры: {texRes}x{texRes}");
+		GD.Print($"Тайлинг текстур: X={tileScaleX:F2}, Z={tileScaleZ:F2}, base={tileScale:F2}");
 		
 		// Проверяем маску дорог, если она передана
 		if (roadMask != null)
@@ -231,12 +233,12 @@ public static class TerrainTexturePainter
 			int maskWidth = roadMask.GetLength(0);
 			int maskHeight = roadMask.GetLength(1);
 			if (VerboseTextureLogs)
-				GD.Print($"🛣️ Маска дорог получена: {maskWidth}x{maskHeight}, ожидается: {texRes}x{texRes}");
+				GD.Print($"Маска дорог получена: {maskWidth}x{maskHeight}, ожидается: {texRes}x{texRes}");
 			
 			// Если размеры не совпадают, это проблема
 			if (maskWidth != texRes || maskHeight != texRes)
 			{
-				GD.Print($"⚠️ Маска дорог {maskWidth}x{maskHeight} не совпадает с {texRes}x{texRes}. Будет выполнен ресэмплинг.");
+				GD.Print($"Маска дорог {maskWidth}x{maskHeight} не совпадает с {texRes}x{texRes}. Будет выполнен ресэмплинг.");
 				roadMask = ResampleRoadMask(roadMask, texRes, texRes);
 			}
 			
@@ -258,19 +260,19 @@ public static class TerrainTexturePainter
 						}
 					}
 				}
-				GD.Print($"🛣️ Статистика маски дорог: {roadPixels} пикселей с дорогами из {maskWidth * maskHeight} всего");
-				GD.Print($"🛣️ Диапазон значений маски: min={minMaskValue:F3}, max={maxMaskValue:F3}");
+				GD.Print($"Статистика маски дорог: {roadPixels} пикселей с дорогами из {maskWidth * maskHeight} всего");
+				GD.Print($"Диапазон значений маски: min={minMaskValue:F3}, max={maxMaskValue:F3}");
 			}
 		}
 		
 		// Проверяем загрузку текстуры дороги
 		if (roadImg != null && VerboseTextureLogs)
 		{
-			GD.Print($"✅ Текстура дороги загружена: {roadImg.GetWidth()}x{roadImg.GetHeight()}");
+			GD.Print($"Текстура дороги загружена: {roadImg.GetWidth()}x{roadImg.GetHeight()}");
 		}
 		else if (roadMask != null)
 		{
-			GD.Print("⚠️ Маска дорог передана, но текстура дороги не загружена!");
+			GD.Print("Маска дорог передана, но текстура дороги не загружена!");
 		}
 
 		// Создаем пустое изображение с форматом RGBA8
@@ -455,7 +457,7 @@ public static class TerrainTexturePainter
 							
 							if (VerboseTextureLogs && x < 10 && z < 10 && maskValue > 0.1f)
 							{
-								GD.Print($"🛣️ Дорога на [{x},{z}]: maskValue={maskValue:F3}, roadBlend={roadBlend:F3}, roadColor={roadColor}, finalColor={finalColor}");
+								GD.Print($"Дорога на [{x},{z}]: maskValue={maskValue:F3}, roadBlend={roadBlend:F3}, roadColor={roadColor}, finalColor={finalColor}");
 							}
 						}
 					}
@@ -463,7 +465,7 @@ public static class TerrainTexturePainter
 					{
 						if (VerboseTextureLogs && x < 5 && z < 5)
 						{
-							GD.Print($"⚠️ Координаты [{x},{z}] выходят за границы маски {roadMask.GetLength(0)}x{roadMask.GetLength(1)}");
+							GD.Print($"Координаты [{x},{z}] выходят за границы маски {roadMask.GetLength(0)}x{roadMask.GetLength(1)}");
 						}
 					}
 				}
@@ -651,7 +653,10 @@ public static class TerrainTexturePainter
 		}
 
 		if (ImageCache.TryGetValue(path, out Image cached) && cached != null && cached.GetWidth() > 0)
+		{
+			TouchImageCacheEntry(path);
 			return cached;
+		}
 
 		Image img = null;
 		try
@@ -683,6 +688,19 @@ public static class TerrainTexturePainter
 		}
 
 		ImageCache[path] = img;
+		TouchImageCacheEntry(path);
 		return img;
+	}
+
+	private static void TouchImageCacheEntry(string path)
+	{
+		ImageCacheOrder.Remove(path);
+		ImageCacheOrder.Add(path);
+		while (ImageCacheOrder.Count > MaxImageCacheEntries)
+		{
+			string oldest = ImageCacheOrder[0];
+			ImageCacheOrder.RemoveAt(0);
+			ImageCache.Remove(oldest);
+		}
 	}
 }

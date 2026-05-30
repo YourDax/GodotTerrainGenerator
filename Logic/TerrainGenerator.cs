@@ -1,7 +1,7 @@
 using Godot;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 
 [Tool]
@@ -14,6 +14,7 @@ public partial class TerrainGenerator : Node3D
 	private const string MetaNoiseSeedDetail = "terrain_noise_seed_detail";
 	private const string MetaNoiseSeedCoast = "terrain_noise_seed_coast";
 	private bool _cancelRequested = false;
+	private CancellationTokenSource _generationCts;
 
 	// Сигнал для обновления прогресса
 	[Signal]
@@ -23,152 +24,53 @@ public partial class TerrainGenerator : Node3D
 	// Запускает генерацию из словаря конфигурации UI или внешнего кода.
 	public void GenerateFromConfig(Godot.Collections.Dictionary config)
 	{
-		if (config == null)
+		TerraGenerationConfig generationConfig = TerraGenerationConfig.FromDictionary(config);
+		if (generationConfig == null)
 		{
 			GD.PrintErr("GenerateFromConfig: config is null");
 			return;
 		}
 
-		Generate(
-			GetInt(config, "length", 100),
-			GetInt(config, "width", 100),
-			GetFloat(config, "min_height", 0f),
-			GetFloat(config, "max_height", 25f),
-			GetFloat(config, "sand_grass", 0.35f),
-			GetFloat(config, "grass_rock", 0.65f),
-			GetBool(config, "random_use_sand", true),
-			GetBool(config, "random_use_grass", true),
-			GetBool(config, "random_use_rock", true),
-			GetString(config, "random_sand_texture_path", TerraConfig.SandTexturePath),
-			GetString(config, "random_grass_texture_path", TerraConfig.GrassTexturePath),
-			GetString(config, "random_rock_texture_path", TerraConfig.RockTexturePath),
-			GetInt(config, "resolution", 100),
-			GetFloat(config, "water_level", 0.35f),
-			GetString(config, "texture_save_path", string.Empty),
-			GetBool(config, "real_map_mode", false),
-			GetFloat(config, "leftup_lat", 0f),
-			GetFloat(config, "leftup_lng", 0f),
-			GetFloat(config, "rightdown_lat", 0f),
-			GetFloat(config, "rightdown_lng", 0f),
-			GetInt(config, "resolution_mode", 0),
-			GetFloat(config, "realmap_water_level", 0.15f),
-			GetBool(config, "realmap_use_sand", true),
-			GetBool(config, "realmap_use_grass", true),
-			GetBool(config, "realmap_use_rock", true),
-			GetString(config, "realmap_sand_texture_path", string.Empty),
-			GetString(config, "realmap_grass_texture_path", string.Empty),
-			GetString(config, "realmap_rock_texture_path", string.Empty),
-			GetFloat(config, "realmap_object_spacing_multiplier", 0.70f),
-			GetFloat(config, "smoothing", 0.5f),
-			GetInt(config, "texture_mode", 0),
-			GetFloat(config, "slope_blend", 0.5f),
-			GetBool(config, "generate_roads", false),
-			GetString(config, "road_texture_path", string.Empty),
-			GetBool(config, "generate_island", false),
-			GetDictionary(config, "scatter_settings"),
-			GetBool(config, "continue_generation", false),
-			GetString(config, "continue_direction", "x+")
-		);
+		Generate(generationConfig);
 	}
-	
+
 	// Запускает основную генерацию террейна в случайном или real-map режиме.
-	public void Generate(
-		int length, int width,
-		float minHeight, float maxHeight,
-		float sandGrass,
-		float grassRock,
-		bool randomUseSand,
-		bool randomUseGrass,
-		bool randomUseRock,
-		string randomSandTexturePath,
-		string randomGrassTexturePath,
-		string randomRockTexturePath,
-		int resolution,
-		float waterLevel,
-		string savePath,
-		bool realMapMode,
-		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng,
-		int resolutionMode = 0,
-		float realMapWaterLevel = 0.15f,
-		bool realMapUseSand = true,
-		bool realMapUseGrass = true,
-		bool realMapUseRock = true,
-		string realMapSandTexturePath = "",
-		string realMapGrassTexturePath = "",
-		string realMapRockTexturePath = "",
-		float realMapObjectSpacingMultiplier = 0.70f,
-		float smoothing = 0.5f,
-		int textureMode = 0,
-		float slopeBlend = 0.5f,
-		bool generateRoads = false,
-		string roadTexturePath = "",
-		bool generateIsland = false,
-		Godot.Collections.Dictionary scatterSettings = null,
-		bool continueGeneration = false,
-		string continueDirection = "x+"
-	)
+	public void Generate(TerraGenerationConfig config)
 	{
+		if (config == null)
+		{
+			GD.PrintErr("Generate: config is null");
+			return;
+		}
+
 		_cancelRequested = false;
+		_generationCts?.Cancel();
+		_generationCts?.Dispose();
+		_generationCts = new CancellationTokenSource();
+
 		Stopwatch fullGenerationStopwatch = Stopwatch.StartNew();
 		EmitProgressSignal(2.0f, "Подготовка генерации...");
 		GD.Print("═══════════════════════════════════════");
 		GD.Print("C# Generate() вызван из GDScript!");
-		GD.Print($"Параметры: length={length}, width={width}, resolution={resolution}");
-		GD.Print($"realMapMode={realMapMode}, generateRoads={generateRoads}");
+		GD.Print($"Параметры: length={config.Length}, width={config.Width}, resolution={config.Resolution}");
+		GD.Print($"realMapMode={config.RealMapMode}, generateRoads={config.GenerateRoads}");
 		GD.Print("═══════════════════════════════════════");
-		if (realMapMode)
+
+		if (config.RealMapMode)
 		{
-			// Асинхронный вызов - запускаем в фоне
-			_ = GenerateRealMapTerrainAsync(
-				leftuplat, leftuplng,
-				rightdownlat, rightdownlng,
-				resolutionMode,
-				realMapWaterLevel,
-				realMapUseSand,
-				realMapUseGrass,
-				realMapUseRock,
-				realMapSandTexturePath,
-				realMapGrassTexturePath,
-				realMapRockTexturePath,
-				realMapObjectSpacingMultiplier,
-				fullGenerationStopwatch
-			);
+			_ = GenerateRealMapTerrainAsync(config, fullGenerationStopwatch, _generationCts.Token);
 			return;
 		}
-		else
-		{
-			GD.Print("Режим случайной генерации");
-			_ = GenerateRandomTerrainAsync(
-				length, width,
-				minHeight, maxHeight,
-				sandGrass, grassRock,
-				randomUseSand,
-				randomUseGrass,
-				randomUseRock,
-				randomSandTexturePath,
-				randomGrassTexturePath,
-				randomRockTexturePath,
-				resolution,
-				waterLevel,
-				savePath,
-				smoothing,
-				textureMode,
-				slopeBlend,
-				generateRoads,
-				roadTexturePath,
-				generateIsland,
-				scatterSettings,
-				continueGeneration,
-				continueDirection,
-				fullGenerationStopwatch
-			);
-		}
+
+		GD.Print("Режим случайной генерации");
+		_ = GenerateRandomTerrainAsync(config, fullGenerationStopwatch);
 	}
 
 	// Помечает текущую генерацию как отменённую и уведомляет UI.
 	public void CancelGeneration()
 	{
 		_cancelRequested = true;
+		_generationCts?.Cancel();
 		CallDeferred(MethodName.EmitProgressSignal, 100.0f, "Генерация остановлена пользователем");
 	}
 
@@ -187,7 +89,7 @@ public partial class TerrainGenerator : Node3D
 	{
 		if (!_cancelRequested)
 			return false;
-		GD.Print("⛔ Генерация остановлена пользователем");
+		GD.Print("Генерация остановлена пользователем");
 		return true;
 	}
 
@@ -204,35 +106,23 @@ public partial class TerrainGenerator : Node3D
 	}
 
 	// Выполняет асинхронную генерацию случайного террейна, воды, текстур и объектов.
-	private async Task GenerateRandomTerrainAsync(
-		int length, int width,
-		float minHeight, float maxHeight,
-		float sandGrass, float grassRock,
-		bool randomUseSand,
-		bool randomUseGrass,
-		bool randomUseRock,
-		string randomSandTexturePath,
-		string randomGrassTexturePath,
-		string randomRockTexturePath,
-		int resolution,
-		float waterLevel,
-		string savePath,
-		float smoothing,
-		int textureMode,
-		float slopeBlend,
-		bool generateRoads,
-		string roadTexturePath,
-		bool generateIsland,
-		Godot.Collections.Dictionary scatterSettings,
-		bool continueGeneration,
-		string continueDirection,
-		Stopwatch fullGenerationStopwatch
-	)
+	private async Task GenerateRandomTerrainAsync(TerraGenerationConfig config, Stopwatch fullGenerationStopwatch)
 	{
 		string generationOutcome = "успешно завершен";
 		try
 		{
-			GD.Print("🚀 GenerateRandomTerrainAsync начат");
+			GD.Print("GenerateRandomTerrainAsync начат");
+
+			int length = config.Length;
+			int width = config.Width;
+			float minHeight = config.MinHeight;
+			float maxHeight = config.MaxHeight;
+			float sandGrass = config.SandGrass;
+			float grassRock = config.GrassRock;
+			int resolution = config.Resolution;
+			float waterLevel = config.WaterLevel;
+			int textureMode = config.TextureMode;
+			float slopeBlend = config.SlopeBlend;
 
 			TerrainContinuationService.ContinueContext continuation = null;
 			if (IsGenerationCanceled())
@@ -240,22 +130,22 @@ public partial class TerrainGenerator : Node3D
 				generationOutcome = "остановлен пользователем";
 				return;
 			}
-			if (continueGeneration)
+			if (config.ContinueGeneration)
 			{
 				try
 				{
-					continuation = TerrainContinuationService.BuildContinueContext(this, continueDirection, ContinuationDebugLogging);
+					continuation = TerrainContinuationService.BuildContinueContext(this, config.ContinueDirection, ContinuationDebugLogging);
 				}
 				catch (Exception ex)
 				{
 					generationOutcome = "завершился с ошибкой";
-					GD.PrintErr($"❌ Ошибка продолжения генерации: {ex.Message}");
+					GD.PrintErr($"Ошибка продолжения генерации: {ex.Message}");
 					return;
 				}
 				if (continuation == null)
 				{
 					generationOutcome = "завершился с ошибкой";
-					GD.PrintErr("❌ Не удалось продолжить генерацию: исходный мэш не найден или невалиден.");
+					GD.PrintErr("Не удалось продолжить генерацию: исходный мэш не найден или невалиден.");
 					return;
 				}
 
@@ -275,7 +165,7 @@ public partial class TerrainGenerator : Node3D
 				resolution = Mathf.Max(resolution, continuation.SuggestedResolution);
 				if (ContinuationDebugLogging && resolution != oldResolution)
 				{
-					GD.Print($"📏 CONT resolution adjusted: requested={oldResolution}, suggested={continuation.SuggestedResolution}, final={resolution}");
+					GD.Print($"CONT resolution adjusted: requested={oldResolution}, suggested={continuation.SuggestedResolution}, final={resolution}");
 				}
 
 				if (continuation.SourceWaterY.HasValue)
@@ -284,8 +174,7 @@ public partial class TerrainGenerator : Node3D
 					waterLevel = Mathf.Clamp(((continuation.SourceWaterY.Value - minHeight) / range) + 0.5f, 0.0f, 1.0f);
 				}
 			}
-		
-			// Обновляем прогресс
+
 			EmitProgressSignal(10.0f, "Генерация меша...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			if (IsGenerationCanceled())
@@ -293,8 +182,8 @@ public partial class TerrainGenerator : Node3D
 				generationOutcome = "остановлен пользователем";
 				return;
 			}
-		
-			GD.Print("📦 Создаю RandomTerrainGenerator...");
+
+			GD.Print("Создаю RandomTerrainGenerator...");
 			var random = new RandomTerrainGenerator();
 
 			float yOffset = (maxHeight - minHeight) * 0.5f;
@@ -309,23 +198,23 @@ public partial class TerrainGenerator : Node3D
 
 			if (ContinuationDebugLogging)
 			{
-				GD.Print($"🧪 CONT noise seeds: base={baseSeed} hill={hillSeed} detail={detailSeed} coast={coastSeed}");
-				GD.Print($"🧪 CONT noise sample offset: x={plannedPosition.X:F2} z={plannedPosition.Z:F2}");
+				GD.Print($"CONT noise seeds: base={baseSeed} hill={hillSeed} detail={detailSeed} coast={coastSeed}");
+				GD.Print($"CONT noise sample offset: x={plannedPosition.X:F2} z={plannedPosition.Z:F2}");
 			}
 
-			GD.Print($"🔨 Генерирую меш: length={length}, width={width}, resolution={resolution}");
+			GD.Print($"Генерирую меш: length={length}, width={width}, resolution={resolution}");
 			Stopwatch meshBuildStopwatch = Stopwatch.StartNew();
 			Mesh mesh = random.GenerateMesh(
-			length, width,
-			minHeight, maxHeight,
-			resolution,
-			smoothing,
-			generateIsland,
-			waterLevel,
-			baseSeed,
-			hillSeed,
-			detailSeed,
-			coastSeed,
+				length, width,
+				minHeight, maxHeight,
+				resolution,
+				config.Smoothing,
+				config.GenerateIsland,
+				waterLevel,
+				baseSeed,
+				hillSeed,
+				detailSeed,
+				coastSeed,
 				plannedPosition.X,
 				plannedPosition.Z
 			);
@@ -341,21 +230,21 @@ public partial class TerrainGenerator : Node3D
 			{
 				TerrainContinuationService.ApplyEdgeConstraintToMesh(mesh, resolution, continuation, ContinuationDebugLogging);
 			}
-		
+
 			if (mesh == null)
 			{
 				generationOutcome = "завершился с ошибкой";
-				GD.PrintErr("❌ Меш не был создан!");
+				GD.PrintErr("Меш не был создан!");
 				return;
 			}
 			if (mesh.GetSurfaceCount() == 0)
 			{
 				generationOutcome = "завершился с ошибкой";
-				GD.PrintErr("❌ Меш не содержит поверхностей после генерации/стыковки!");
+				GD.PrintErr("Меш не содержит поверхностей после генерации/стыковки!");
 				return;
 			}
-		
-			GD.Print($"✅ Меш создан, поверхностей: {mesh.GetSurfaceCount()}");
+
+			GD.Print($"Меш создан, поверхностей: {mesh.GetSurfaceCount()}");
 
 			EmitProgressSignal(30.0f, "Создание экземпляра меша...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -384,7 +273,7 @@ public partial class TerrainGenerator : Node3D
 			meshInstance.SetMeta("terrain_max_height", maxHeight);
 			meshInstance.SetMeta("terrain_sand_grass", sandGrass);
 			meshInstance.SetMeta("terrain_grass_rock", grassRock);
-			meshInstance.SetMeta("terrain_smoothing", smoothing);
+			meshInstance.SetMeta("terrain_smoothing", config.Smoothing);
 			meshInstance.SetMeta("terrain_texture_mode", textureMode);
 			meshInstance.SetMeta("terrain_slope_blend", slopeBlend);
 
@@ -399,41 +288,36 @@ public partial class TerrainGenerator : Node3D
 				meshInstance.QueueFree();
 				return;
 			}
-		
-			// Вычисляем разрешение текстуры, которое будет использоваться в TerrainTexturePainter
-			// Это должно совпадать с разрешением, которое вычисляется в TerrainTexturePainter
+
 			int maxMapSize = Mathf.Max(length, width);
 			int texRes = TerraConfig.GetTextureResolutionForSize(maxMapSize);
-		
-			// Генерируем маску дорог, если включена опция
+
 			float[,] roadMask = null;
-			if (generateRoads)
+			if (config.GenerateRoads)
 			{
 				EmitProgressSignal(55.0f, "Генерация маски дорог...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-			
-				// Вычисляем пропорциональную ширину дороги
+
 				float roadWidth = TerraConfig.GetRoadWidthForTerrain(length, width);
-			
-				GD.Print($"🛣️ Генерация маски дорог с разрешением: {texRes}x{texRes}");
-			
+
+				GD.Print($"Генерация маски дорог с разрешением: {texRes}x{texRes}");
+
 				roadMask = RoadGenerator.GenerateRoadMask(
-				meshInstance,
-				length,
-				width,
-				minHeight,
-				maxHeight,
-				resolution,
-				texRes,
-				roadWidth,
-				waterLevel,
-				sandGrass,
+					meshInstance,
+					length,
+					width,
+					minHeight,
+					maxHeight,
+					resolution,
+					texRes,
+					roadWidth,
+					waterLevel,
+					sandGrass,
 					grassRock
 				);
-			
+
 				if (roadMask != null)
 				{
-				// Проверяем, сколько пикселей в маске имеют значение > 0
 					int roadPixels = 0;
 					for (int x = 0; x < texRes; x++)
 					{
@@ -442,42 +326,42 @@ public partial class TerrainGenerator : Node3D
 							if (roadMask[x, z] > 0.0f) roadPixels++;
 						}
 					}
-					GD.Print($"✅ Маска дорог создана: {texRes}x{texRes}, пикселей дорог: {roadPixels}");
+					GD.Print($"Маска дорог создана: {texRes}x{texRes}, пикселей дорог: {roadPixels}");
 				}
 			}
 
-			ResolveTexturePaths(
-			randomUseSand,
-			randomUseGrass,
-			randomUseRock,
-			randomSandTexturePath,
-			randomGrassTexturePath,
-			randomRockTexturePath,
+			TerrainTexturePaths.Resolve(
+				config.RandomUseSand,
+				config.RandomUseGrass,
+				config.RandomUseRock,
+				config.RandomSandTexturePath,
+				config.RandomGrassTexturePath,
+				config.RandomRockTexturePath,
 				out string sandPath,
 				out string grassPath,
 				out string rockPath
 			);
-		
+
 			await TerrainTexturePainter.ApplyHeightTexture(
-			meshInstance,
-			minHeight,
-			maxHeight,
-			sandPath,
-			grassPath,
-			rockPath,
-			savePath,
-			sandGrass,
-			grassRock,
-			length,
-			width,
-			textureMode,
-			slopeBlend,
-			roadMask,
-			roadTexturePath,
-			(progress, status) =>
-			{
-				CallDeferred(MethodName.EmitProgressSignal, progress, status);
-			},
+				meshInstance,
+				minHeight,
+				maxHeight,
+				sandPath,
+				grassPath,
+				rockPath,
+				config.TextureSavePath,
+				sandGrass,
+				grassRock,
+				length,
+				width,
+				textureMode,
+				slopeBlend,
+				roadMask,
+				config.RoadTexturePath,
+				(progress, status) =>
+				{
+					CallDeferred(MethodName.EmitProgressSignal, progress, status);
+				},
 				() => _cancelRequested
 			);
 
@@ -502,25 +386,22 @@ public partial class TerrainGenerator : Node3D
 			AddChild(water);
 			if (Owner != null) water.Owner = Owner;
 
-			// Дороги теперь накладываются как текстура поверх основной текстуры террейна
-			// Генерация маски дорог происходит выше, перед применением текстур
-
-			if (scatterSettings != null && scatterSettings.Count > 0)
+			if (config.ScatterSettings != null && config.ScatterSettings.Count > 0)
 			{
 				EmitProgressSignal(92.0f, "Размещение объектов...");
 				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 				ObjectScatterPlacer.Scatter(
-				this,
-				meshInstance,
-				length,
-				width,
-				resolution,
-				minHeight,
-				maxHeight,
-				waterLevel,
-				roadMask,
-				texRes,
-				scatterSettings,
+					this,
+					meshInstance,
+					length,
+					width,
+					resolution,
+					minHeight,
+					maxHeight,
+					waterLevel,
+					roadMask,
+					texRes,
+					config.ScatterSettings,
 					Owner
 				);
 			}
@@ -530,7 +411,7 @@ public partial class TerrainGenerator : Node3D
 		catch (Exception ex)
 		{
 			generationOutcome = "завершился с ошибкой";
-			GD.PrintErr($"❌ Ошибка полной генерации random terrain: {ex.Message}");
+			GD.PrintErr($"Ошибка полной генерации random terrain: {ex.Message}");
 		}
 		finally
 		{
@@ -540,142 +421,56 @@ public partial class TerrainGenerator : Node3D
 
 	// Выполняет асинхронную генерацию террейна по real-map данным.
 	private async Task GenerateRealMapTerrainAsync(
-		float leftuplat, float leftuplng, float rightdownlat, float rightdownlng,
-		int resolutionMode = 0,
-		float realMapWaterLevel = 0.15f,
-		bool realMapUseSand = true,
-		bool realMapUseGrass = true,
-		bool realMapUseRock = true,
-		string realMapSandTexturePath = "",
-		string realMapGrassTexturePath = "",
-		string realMapRockTexturePath = "",
-		float realMapObjectSpacingMultiplier = 0.70f,
-		Stopwatch fullGenerationStopwatch = null
+		TerraGenerationConfig config,
+		Stopwatch fullGenerationStopwatch,
+		CancellationToken cancellationToken
 	)
 	{
 		string generationOutcome = "успешно завершен";
 		try
 		{
-			// Передаем callback для обновления прогресса
 			Node3D generated = await RealMapTerrainGenerator.Generate(
 				this,
-				leftuplat, leftuplng,
-				rightdownlat, rightdownlng,
+				config.LeftUpLat, config.LeftUpLng,
+				config.RightDownLat, config.RightDownLng,
 				Owner,
-				resolutionMode,
-				realMapWaterLevel,
-				realMapUseSand,
-				realMapUseGrass,
-				realMapUseRock,
-				realMapSandTexturePath,
-				realMapGrassTexturePath,
-				realMapRockTexturePath,
-				realMapObjectSpacingMultiplier,
-				(progress, status) => {
+				config.ResolutionMode,
+				config.RealMapWaterLevel,
+				config.RealMapUseSand,
+				config.RealMapUseGrass,
+				config.RealMapUseRock,
+				config.RealMapSandTexturePath,
+				config.RealMapGrassTexturePath,
+				config.RealMapRockTexturePath,
+				config.RealMapObjectSpacingMultiplier,
+				(progress, status) =>
+				{
 					CallDeferred(MethodName.EmitProgressSignal, progress, status);
-				}
+				},
+				() => _cancelRequested,
+				cancellationToken
 			);
 
-			if (generated == null)
+			if (IsGenerationCanceled())
+				generationOutcome = "остановлен пользователем";
+			else if (generated == null)
 				generationOutcome = "завершился с ошибкой";
+		}
+		catch (OperationCanceledException)
+		{
+			generationOutcome = "остановлен пользователем";
+			GD.Print("Real-map генерация отменена");
 		}
 		catch (Exception ex)
 		{
 			generationOutcome = "завершился с ошибкой";
-			GD.PrintErr($"❌ Ошибка полной генерации real-map terrain: {ex.Message}");
+			GD.PrintErr($"Ошибка полной генерации real-map terrain: {ex.Message}");
 		}
 		finally
 		{
 			LogFullGenerationDuration(fullGenerationStopwatch, "real-map", generationOutcome);
 		}
 	}
-
-	// Безопасно читает bool из словаря конфигурации.
-	private static bool GetBool(Godot.Collections.Dictionary dict, string key, bool fallback)
-	{
-		if (dict == null || !dict.ContainsKey(key)) return fallback;
-		return dict[key].AsBool();
-	}
-
-	// Безопасно читает int из словаря конфигурации.
-	private static int GetInt(Godot.Collections.Dictionary dict, string key, int fallback)
-	{
-		if (dict == null || !dict.ContainsKey(key)) return fallback;
-		return dict[key].AsInt32();
-	}
-
-	// Безопасно читает float из словаря конфигурации.
-	private static float GetFloat(Godot.Collections.Dictionary dict, string key, float fallback)
-	{
-		if (dict == null || !dict.ContainsKey(key)) return fallback;
-		return dict[key].AsSingle();
-	}
-
-	// Безопасно читает string из словаря конфигурации.
-	private static string GetString(Godot.Collections.Dictionary dict, string key, string fallback)
-	{
-		if (dict == null || !dict.ContainsKey(key)) return fallback;
-		return dict[key].AsString();
-	}
-
-	// Возвращает вложенный словарь конфигурации, если он существует.
-	private static Godot.Collections.Dictionary GetDictionary(Godot.Collections.Dictionary dict, string key)
-	{
-		if (dict == null || !dict.ContainsKey(key)) return null;
-		return dict[key].VariantType == Variant.Type.Dictionary ? dict[key].AsGodotDictionary() : null;
-	}
-
-	// Подбирает итоговые пути текстур для текущего набора флагов использования.
-	private static void ResolveTexturePaths(
-		bool useSandTexture,
-		bool useGrassTexture,
-		bool useRockTexture,
-		string sandTexturePath,
-		string grassTexturePath,
-		string rockTexturePath,
-		out string sandPath,
-		out string grassPath,
-		out string rockPath
-	)
-	{
-	// Ищет следующий свободный индекс чанка среди уже созданных мешей.
-		if (!(useSandTexture || useGrassTexture || useRockTexture))
-			useSandTexture = true;
-
-		string sandTex = string.IsNullOrWhiteSpace(sandTexturePath) ? TerraConfig.SandTexturePath : sandTexturePath;
-		string grassTex = string.IsNullOrWhiteSpace(grassTexturePath) ? TerraConfig.GrassTexturePath : grassTexturePath;
-		string rockTex = string.IsNullOrWhiteSpace(rockTexturePath) ? TerraConfig.RockTexturePath : rockTexturePath;
-
-		if (useSandTexture && useGrassTexture && useRockTexture)
-		{
-			sandPath = sandTex; grassPath = grassTex; rockPath = rockTex;
-		}
-		else if (useSandTexture && useGrassTexture && !useRockTexture)
-		{
-			sandPath = sandTex; grassPath = grassTex; rockPath = grassTex;
-		}
-		else if (useSandTexture && !useGrassTexture && useRockTexture)
-		{
-			sandPath = sandTex; grassPath = rockTex; rockPath = rockTex;
-		}
-		else if (!useSandTexture && useGrassTexture && useRockTexture)
-		{
-			sandPath = grassTex; grassPath = grassTex; rockPath = rockTex;
-		}
-		else if (useSandTexture && !useGrassTexture && !useRockTexture)
-		{
-			sandPath = sandTex; grassPath = sandTex; rockPath = sandTex;
-		}
-		else if (!useSandTexture && useGrassTexture && !useRockTexture)
-		{
-			sandPath = grassTex; grassPath = grassTex; rockPath = grassTex;
-		}
-		else
-		{
-			sandPath = rockTex; grassPath = rockTex; rockPath = rockTex;
-		}
-	}
-
 
 	private int GetNextChunkIndex()
 	{

@@ -143,7 +143,7 @@ public static class TerrainContinuationService
 				float r0a = segments[^1].EdgeRows[0, 0];
 				float r0m = segments[^1].EdgeRows[0, mid];
 				float r0b = segments[^1].EdgeRows[0, samples - 1];
-				GD.Print($"🧩 CONT segment [{c.Mesh.Name}] dir={directionText} axis=[{c.AxisMin:F2}..{c.AxisMax:F2}] face={c.FaceCoord:F2} res={c.Resolution} edgeRow0(start/mid/end)={r0a:F2}/{r0m:F2}/{r0b:F2}");
+				GD.Print($"CONT segment [{c.Mesh.Name}] dir={directionText} axis=[{c.AxisMin:F2}..{c.AxisMax:F2}] face={c.FaceCoord:F2} res={c.Resolution} edgeRow0(start/mid/end)={r0a:F2}/{r0m:F2}/{r0b:F2}");
 			}
 		}
 
@@ -163,7 +163,7 @@ public static class TerrainContinuationService
 
 		if (debugLogging)
 		{
-			GD.Print($"🧭 CONT context dir={directionText} frontierFace={frontierFace:F2} axis=[{axisMin:F2}..{axisMax:F2}] span={axisSpan:F2} sourceLen={sourceLength} sourceWid={sourceWidth} suggestedRes={suggestedResolution} baseY={baseY:F2} frontierCount={frontier.Count}");
+			GD.Print($"CONT context dir={directionText} frontierFace={frontierFace:F2} axis=[{axisMin:F2}..{axisMax:F2}] span={axisSpan:F2} sourceLen={sourceLength} sourceWid={sourceWidth} suggestedRes={suggestedResolution} baseY={baseY:F2} frontierCount={frontier.Count}");
 			AppendDebugLog(true, $"context dir={directionText} axis=[{axisMin:F2}..{axisMax:F2}] span={axisSpan:F2} sourceLen={sourceLength} sourceWid={sourceWidth} suggestedRes={suggestedResolution} baseY={baseY:F2} sourceMin={srcMinH:F2} sourceMax={srcMaxH:F2} waterY={(sourceWaterY.HasValue ? sourceWaterY.Value.ToString("F2") : "null")}");
 			for (int i = 0; i < frontier.Count; i++)
 			{
@@ -212,7 +212,7 @@ public static class TerrainContinuationService
 		if (debugLogging)
 		{
 			int mid = Mathf.Clamp((resolution - 1) / 2, 0, resolution - 1);
-			GD.Print($"🪡 CONT seam dir={ctx.DirectionText} lockRows={lockRows} blendRows={blendRows} strip[r0]=[{edgeStrip[0, 0]:F2},{edgeStrip[0, mid]:F2},{edgeStrip[0, resolution - 1]:F2}]");
+			GD.Print($"CONT seam dir={ctx.DirectionText} lockRows={lockRows} blendRows={blendRows} strip[r0]=[{edgeStrip[0, 0]:F2},{edgeStrip[0, mid]:F2},{edgeStrip[0, resolution - 1]:F2}]");
 		}
 
 		float[] lockSourceSum = new float[resolution];
@@ -313,7 +313,7 @@ public static class TerrainContinuationService
 
 		if (debugLogging)
 		{
-			GD.Print($"🧭 CONT seam morph: sourceRange={sourceRange:F2}, lockRows={lockRows}, blendRows={blendRows}, slopePerRow={allowedSlopePerRow:F2}");
+			GD.Print($"CONT seam morph: sourceRange={sourceRange:F2}, lockRows={lockRows}, blendRows={blendRows}, slopePerRow={allowedSlopePerRow:F2}");
 			AppendDebugLog(true, DescribeOffsetStats("lockRow", lockRowOffset));
 			AppendDebugLog(true, $"offsets[morph] p90Abs={p90Abs:F3} allowedSlopePerRow={allowedSlopePerRow:F3} lockRows={lockRows} blendRows={blendRows}");
 			AppendDebugLog(true, DescribeTopOffsetSamples("lockRow", lockRowOffset, 8));
@@ -352,7 +352,7 @@ public static class TerrainContinuationService
 
 		if (debugLogging)
 		{
-			GD.Print($"✅ CONT seam applied dir={ctx.DirectionText} resolution={resolution} vertices={verticesArray.Length}");
+			GD.Print($"CONT seam applied dir={ctx.DirectionText} resolution={resolution} vertices={verticesArray.Length}");
 			AppendDebugLog(true, $"applied dir={ctx.DirectionText} res={resolution} vertices={verticesArray.Length} blendRows={blendRows} lockRows={lockRows}");
 		}
 	}
@@ -411,7 +411,7 @@ public static class TerrainContinuationService
 			sb.AppendLine($"direction={directionText}");
 			sb.AppendLine($"candidates={candidates.Count}");
 			File.WriteAllText(_activeDebugLogPath, sb.ToString(), Encoding.UTF8);
-			GD.Print($"📝 Continuation debug log: {_activeDebugLogPath}");
+			GD.Print($"Continuation debug log: {_activeDebugLogPath}");
 		}
 		catch (Exception ex)
 		{
@@ -786,7 +786,7 @@ public static class TerrainContinuationService
 
 		if (debugLogging)
 		{
-			GD.Print($"📐 CONT uv-map [{meshInstance.Name}] res={resolution} flipX={flipX} flipZ={flipZ} uvX(minX/maxX)={uvXAtMinX:F3}/{uvXAtMaxX:F3} uvY(minZ/maxZ)={uvYAtMinZ:F3}/{uvYAtMaxZ:F3}");
+			GD.Print($"CONT uv-map [{meshInstance.Name}] res={resolution} flipX={flipX} flipZ={flipZ} uvX(minX/maxX)={uvXAtMinX:F3}/{uvXAtMaxX:F3} uvY(minZ/maxZ)={uvYAtMinZ:F3}/{uvYAtMaxZ:F3}");
 		}
 
 		for (int i = 0; i < verticesArray.Count; i++)
@@ -860,7 +860,7 @@ public static class TerrainContinuationService
 
 			if (debugLogging && (i == 0 || i == targetResolution / 2 || i == targetResolution - 1))
 			{
-				GD.Print($"🔎 CONT strip-map i={i} axisWorld={worldAxis:F2} seg=[{segment.AxisMin:F2}..{segment.AxisMax:F2}] segIdx={segIdx:F2} r0={strip[0, i]:F2}");
+				GD.Print($"CONT strip-map i={i} axisWorld={worldAxis:F2} seg=[{segment.AxisMin:F2}..{segment.AxisMax:F2}] segIdx={segIdx:F2} r0={strip[0, i]:F2}");
 			}
 		}
 		return strip;

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 
 // Класс для генерации реального рельефа по данным API OpenTopoData
@@ -12,32 +13,18 @@ public static class RealMapTerrainGenerator
 	// URL API для запроса высот
 
 	// Параметры пакетной отправки запросов
-	private const int FIXED_RESOLUTION = 50; // Фиксированное разрешение 50x50
-	private const int MAX_POINTS_PER_REQUEST = TerraConfig.OpenTopoMaxPointsPerRequest; // Лимит API OpenTopoData
-	private const int MAX_REQUESTS = 25; // Максимум запросов (50x50 = 2500 точек / 100 = 25 запросов)
-	private const int REQUEST_DELAY_MS = TerraConfig.OpenTopoRequestDelayMs; // Задержка после успешного запроса
-	private const int RETRY_DELAY_MS = TerraConfig.OpenTopoRetryDelayMs; // Задержка при повторной попытке
-	private const int MAX_RETRIES = TerraConfig.OpenTopoMaxRetries; // Количество повторных попыток при ошибке
-	private const int REQUEST_TIMEOUT_SECONDS = TerraConfig.OpenTopoTimeoutSeconds; // Таймаут запроса
-
-	// Диапазон нормализованных высот (в метрах)
-	private const float TARGET_MIN_HEIGHT = 0f;
-	private const float TARGET_MAX_HEIGHT = 200f;
+	private const int MAX_POINTS_PER_REQUEST = TerraConfig.OpenTopoMaxPointsPerRequest;
+	private const int MAX_REQUESTS = 25;
+	private const int REQUEST_DELAY_MS = TerraConfig.OpenTopoRequestDelayMs;
+	private const int RETRY_DELAY_MS = TerraConfig.OpenTopoRetryDelayMs;
+	private const int MAX_RETRIES = TerraConfig.OpenTopoMaxRetries;
+	private const int REQUEST_TIMEOUT_SECONDS = TerraConfig.OpenTopoTimeoutSeconds;
 
 	// Параметры масштабирования меша
 	private const float MAX_MESH_UNITS = 200f;
 	private const float MIN_MESH_UNITS = 8f;
 	private const float METERS_TO_UNITS = 0.01f;
-	private const float VERTICAL_SCALE = 1.0f; // Будет переопределен динамически
-	private const float HEIGHT_TO_MESH_RATIO = 0.15f; // Высоты занимают 15% от размера меша
-
-	// Режимы разрешения
-	public enum ResolutionMode
-	{
-		HighQuality = 0,    // 50x50 (25 запросов)
-		MediumQuality = 1,  // 31x31 (10 запросов)
-		Adaptive = 2        // Адаптивное
-	}
+	private const float HEIGHT_TO_MESH_RATIO = 0.15f;
 
 	// Делегат для обновления прогресса
 	public delegate void ProgressCallback(float progress, string status);
@@ -60,9 +47,14 @@ public static class RealMapTerrainGenerator
 		string grassTexturePath = "",
 		string rockTexturePath = "",
 		float objectSpacingMultiplier = 0.70f,
-		ProgressCallback progressCallback = null
+		ProgressCallback progressCallback = null,
+		Func<bool> isCanceled = null,
+		CancellationToken cancellationToken = default
 	)
 	{
+		if (IsCanceled(isCanceled, cancellationToken))
+			return null;
+
 		// Логирование границ
 		GD.Print("=== Генерация реального рельефа OpenTopoData ===");
 		GD.Print($"Input bounds raw: NW({leftUpLat.ToString(CultureInfo.InvariantCulture)},{leftUpLng.ToString(CultureInfo.InvariantCulture)}) SE({rightDownLat.ToString(CultureInfo.InvariantCulture)},{rightDownLng.ToString(CultureInfo.InvariantCulture)})");
@@ -75,14 +67,16 @@ public static class RealMapTerrainGenerator
 		float west = Mathf.Min(leftUpLng, rightDownLng);
 		float east = Mathf.Max(leftUpLng, rightDownLng);
 
-		// Загружаем матрицу высот (только OpenTopoData)
 		int resolution = TerrainMath.ResolveResolution(north, south, west, east, resolutionMode);
-		float[,] heights = await RequestHeightsFromOpenTopo(north, south, west, east, resolution, progressCallback);
+		float[,] heights = await RequestHeightsFromOpenTopo(
+			north, south, west, east, resolution, progressCallback, cancellationToken);
 
-		// Проверка на ошибки
+		if (IsCanceled(isCanceled, cancellationToken))
+			return null;
+
 		if (heights == null)
 		{
-			GD.PrintErr("❌ heights = null");
+			GD.PrintErr("heights = null");
 			return null;
 		}
 
@@ -95,7 +89,10 @@ public static class RealMapTerrainGenerator
 		FillMissingHeights(heights);
 
 		progressCallback?.Invoke(75.0f, "Построение меша...");
-		
+
+		if (IsCanceled(isCanceled, cancellationToken))
+			return null;
+
 		// Строим меш на основе высот и получаем размер меша
 		float meshMaxSizeUnits;
 		RealMapMeshMeta meta;
@@ -107,7 +104,7 @@ public static class RealMapTerrainGenerator
 		// Проверка валидности меша
 		if (mesh == null || mesh.GetSurfaceCount() == 0)
 		{
-			GD.PrintErr("❌ mesh пуст");
+			GD.PrintErr("mesh пуст");
 			return null;
 		}
 
@@ -132,13 +129,13 @@ public static class RealMapTerrainGenerator
 		parent.AddChild(meshInstance);
 		if (owner != null) meshInstance.Owner = owner;
 
-		GD.Print("✅ MeshInstance добавлен в сцену");
+		GD.Print("MeshInstance добавлен в сцену");
 
 		// Получаем размеры сетки из размеров массива высот
 		int meshResX = heights.GetLength(0);
 		int meshResZ = heights.GetLength(1);
 		
-		GD.Print($"🎨 Applying textures: mesh resolution {meshResX}x{meshResZ}");
+		GD.Print($"Applying textures: mesh resolution {meshResX}x{meshResZ}");
 
 		progressCallback?.Invoke(85.0f, "Применение текстур...");
 
@@ -146,7 +143,7 @@ public static class RealMapTerrainGenerator
 		// Передаем исходный массив высот напрямую, чтобы избежать проблем с порядком вершин
 		const float SAND_GRASS_THRESHOLD = 0.35f;
 		const float GRASS_ROCK_THRESHOLD = 0.65f;
-		ResolveTexturePaths(
+		TerrainTexturePaths.Resolve(
 			useSandTexture,
 			useGrassTexture,
 			useRockTexture,
@@ -169,15 +166,19 @@ public static class RealMapTerrainGenerator
 			GRASS_ROCK_THRESHOLD
 		);
 
-		GD.Print("✅ Текстуры применены");
+		GD.Print("Текстуры применены");
+
+		if (IsCanceled(isCanceled, cancellationToken))
+		{
+			meshInstance.QueueFree();
+			return null;
+		}
 
 		progressCallback?.Invoke(92.0f, "OSM: загрузка объектов...");
 
-		// Вода: используем большой плэйн, но добавляем его только если OSM нашёл воду.
 		float waterT = Mathf.Clamp(realMapWaterLevel, 0f, 1f);
 		float worldWaterY = Mathf.Lerp(meta.MinVy, meta.MaxVy, waterT);
 
-		// OSM: получаем воду и деревья
 		List<OsmOverpassClient.OsmNode> trees;
 		List<List<Vector2>> waterPolys;
 		using (var http = new System.Net.Http.HttpClient())
@@ -185,13 +186,31 @@ public static class RealMapTerrainGenerator
 			http.Timeout = TimeSpan.FromSeconds(10);
 			http.DefaultRequestHeaders.Add("User-Agent", "GodotTerrainPlugin/1.0");
 			var osm = new OsmOverpassClient(http, infoLogger: GD.Print, errorLogger: GD.PrintErr);
-			waterPolys = await osm.FetchWaterPolygonsAsync(south, west, north, east, 10, (p, s) => progressCallback?.Invoke(92f + p * 0.03f, s));
-			trees = await osm.FetchTreeNodesAsync(south, west, north, east, 10, (p, s) => progressCallback?.Invoke(95f + p * 0.03f, s));
+			waterPolys = await osm.FetchWaterPolygonsAsync(
+				south, west, north, east, 10,
+				(p, s) => progressCallback?.Invoke(92f + p * 0.03f, s),
+				cancellationToken);
+			if (IsCanceled(isCanceled, cancellationToken))
+			{
+				meshInstance.QueueFree();
+				return null;
+			}
+
+			trees = await osm.FetchTreeNodesAsync(
+				south, west, north, east, 10,
+				(p, s) => progressCallback?.Invoke(95f + p * 0.03f, s),
+				cancellationToken);
+		}
+
+		if (IsCanceled(isCanceled, cancellationToken))
+		{
+			meshInstance.QueueFree();
+			return null;
 		}
 
 		if (waterPolys != null && waterPolys.Count > 0)
 		{
-			GD.Print($"🌊 OSM: вода найдена (полигонов: {waterPolys.Count}), добавляю плоскость воды");
+			GD.Print($"OSM: вода найдена (полигонов: {waterPolys.Count}), добавляю плоскость воды");
 			var water = new RandomTerrainGenerator().GenerateWaterPlane((int)Mathf.Round(meta.WidthUnits), (int)Mathf.Round(meta.DepthUnits), worldWaterY);
 			water.Name = "WaterPlane";
 			water.SetMeta("terrain_is_water", true);
@@ -200,73 +219,22 @@ public static class RealMapTerrainGenerator
 		}
 		else
 		{
-			GD.Print("🌊 OSM: вода не найдена, плоскость воды не добавляется");
+			GD.Print("OSM: вода не найдена, плоскость воды не добавляется");
 		}
 
 		progressCallback?.Invoke(98.0f, "OSM: размещение деревьев...");
 		PlaceTreesFromOsm(meshInstance, meta, heights, trees, owner, worldWaterY, objectSpacingMultiplier);
 
 		progressCallback?.Invoke(100.0f, "Генерация завершена!");
-		GD.Print("✅ Real-map generation completed");
+		GD.Print("Real-map generation completed");
 
 
 		return meshInstance;
 	}
 
-	// Подбирает разрешение сетки для real-map режима.
-	private static int ResolveResolution(float north, float south, float west, float east, int resolutionMode)
+	private static bool IsCanceled(Func<bool> isCanceled, CancellationToken cancellationToken)
 	{
-		return TerrainMath.ResolveResolution(north, south, west, east, resolutionMode);
-	}
-
-	// Подбирает фактические пути текстур с учётом пользовательских и дефолтных настроек.
-	private static void ResolveTexturePaths(
-		bool useSandTexture,
-		bool useGrassTexture,
-		bool useRockTexture,
-		string sandTexturePath,
-		string grassTexturePath,
-		string rockTexturePath,
-		out string sandPath,
-		out string grassPath,
-		out string rockPath
-	)
-	{
-		if (!(useSandTexture || useGrassTexture || useRockTexture))
-			useSandTexture = true;
-
-		string sandTex = string.IsNullOrWhiteSpace(sandTexturePath) ? TerraConfig.SandTexturePath : sandTexturePath;
-		string grassTex = string.IsNullOrWhiteSpace(grassTexturePath) ? TerraConfig.GrassTexturePath : grassTexturePath;
-		string rockTex = string.IsNullOrWhiteSpace(rockTexturePath) ? TerraConfig.RockTexturePath : rockTexturePath;
-
-		if (useSandTexture && useGrassTexture && useRockTexture)
-		{
-			sandPath = sandTex; grassPath = grassTex; rockPath = rockTex;
-		}
-		else if (useSandTexture && useGrassTexture && !useRockTexture)
-		{
-			sandPath = sandTex; grassPath = grassTex; rockPath = grassTex;
-		}
-		else if (useSandTexture && !useGrassTexture && useRockTexture)
-		{
-			sandPath = sandTex; grassPath = rockTex; rockPath = rockTex;
-		}
-		else if (!useSandTexture && useGrassTexture && useRockTexture)
-		{
-			sandPath = grassTex; grassPath = grassTex; rockPath = rockTex;
-		}
-		else if (useSandTexture && !useGrassTexture && !useRockTexture)
-		{
-			sandPath = sandTex; grassPath = sandTex; rockPath = sandTex;
-		}
-		else if (!useSandTexture && useGrassTexture && !useRockTexture)
-		{
-			sandPath = grassTex; grassPath = grassTex; rockPath = grassTex;
-		}
-		else
-		{
-			sandPath = rockTex; grassPath = rockTex; rockPath = rockTex;
-		}
+		return isCanceled?.Invoke() == true || cancellationToken.IsCancellationRequested;
 	}
 
 	// Запрашивает высотную сетку у OpenTopoData и нормализует результат.
@@ -276,7 +244,8 @@ public static class RealMapTerrainGenerator
 		float west,
 		float east,
 		int resolution,
-		ProgressCallback progressCallback
+		ProgressCallback progressCallback,
+		CancellationToken cancellationToken
 	)
 	{
 		using var http = new System.Net.Http.HttpClient();
@@ -292,7 +261,8 @@ public static class RealMapTerrainGenerator
 			MAX_RETRIES,
 			RETRY_DELAY_MS,
 			TimeSpan.FromSeconds(REQUEST_TIMEOUT_SECONDS),
-			(p, s) => progressCallback?.Invoke(5f + p * 0.65f, s)
+			(p, s) => progressCallback?.Invoke(5f + p * 0.65f, s),
+			cancellationToken
 		);
 	}
 
@@ -613,7 +583,7 @@ public static class RealMapTerrainGenerator
 		float stepZ = depthUnits / (resZ - 1);
 
 		// Логируем масштабирование
-		GD.Print($"✅ Mesh scaled: final width={widthUnits:F2} depth={depthUnits:F2} units");
+		GD.Print($"Mesh scaled: final width={widthUnits:F2} depth={depthUnits:F2} units");
 		GD.Print($"Real size (m): width={widthMeters:F1}, depth={depthMeters:F1} -> mesh units width={widthUnits:F2}, depth={depthUnits:F2}");
 
 		// Создаём SurfaceTool
@@ -638,14 +608,14 @@ public static class RealMapTerrainGenerator
 		float targetMaxHeight = sizeUnits * HEIGHT_TO_MESH_RATIO;
 		float heightScale = heightRange > 0.001f ? targetMaxHeight / heightRange : 1f;
 		
-		GD.Print($"📏 Heights: min={minH:F1}m, max={maxH:F1}m, range={heightRange:F1}m");
-		GD.Print($"📏 Mesh size: {sizeUnits:F2} units, target max height: {targetMaxHeight:F2} units");
-		GD.Print($"📏 Height scale: {heightScale:F6} (height range {heightRange:F1}m -> {targetMaxHeight:F2} units)");
+		GD.Print($"Heights: min={minH:F1}m, max={maxH:F1}m, range={heightRange:F1}m");
+		GD.Print($"Mesh size: {sizeUnits:F2} units, target max height: {targetMaxHeight:F2} units");
+		GD.Print($"Height scale: {heightScale:F6} (height range {heightRange:F1}m -> {targetMaxHeight:F2} units)");
 		
 		// Проверяем, есть ли вариация в высотах
 		if (heightRange < 1.0f)
 		{
-			GD.PrintErr($"⚠️ ВНИМАНИЕ: Очень маленький диапазон высот ({heightRange:F2}m)! Ландшафт будет плоским.");
+			GD.PrintErr($"ВНИМАНИЕ: Очень маленький диапазон высот ({heightRange:F2}m)! Ландшафт будет плоским.");
 		}
 
 		float minVy = float.MaxValue;
@@ -712,30 +682,6 @@ public static class RealMapTerrainGenerator
 		// Возвращаем меш и размер
 		meta = new RealMapMeshMeta(north, south, west, east, resX, resZ, widthUnits, depthUnits, sizeUnits, heightScale, minH, maxH, minVy, maxVy);
 		return st.Commit();
-	}
-
-	// Нормализация значений в диапазон
-	// Нормализует значения высот в нужный диапазон.
-	private static void NormalizeToRange(float[,] h, float minTarget, float maxTarget)
-	{
-		GetMinMax(h, out float min, out float max);
-
-		if (Math.Abs(max - min) < 0.001f)
-		{
-			// Почти нет рельефа — генерируем простой наклон
-			for (int x = 0; x < h.GetLength(0); x++)
-				for (int z = 0; z < h.GetLength(1); z++)
-					h[x, z] = (x + z) * 0.1f;
-			return;
-		}
-
-		// Линейная нормализация
-		for (int x = 0; x < h.GetLength(0); x++)
-			for (int z = 0; z < h.GetLength(1); z++)
-			{
-				float t = Mathf.InverseLerp(min, max, h[x, z]);
-				h[x, z] = Mathf.Lerp(minTarget, maxTarget, t);
-			}
 	}
 
 	// Получение min/max

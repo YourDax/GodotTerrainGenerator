@@ -86,14 +86,14 @@ public static class RealWorldTexturePainter
 		
 		float heightRange = maxHeight - minHeight;
 		
-		GD.Print($"🎨 RealWorldTexturePainter: minHeight={minHeight:F3}, maxHeight={maxHeight:F3}, range={heightRange:F3}");
+		GD.Print($"RealWorldTexturePainter: minHeight={minHeight:F3}, maxHeight={maxHeight:F3}, range={heightRange:F3}");
 
 		// Разрешение итоговой текстуры
 		// Рассчитываем на основе размера меша для лучшего качества на больших картах
 		int maxRes = Math.Max(meshResX, meshResZ);
 		int texRes = TerraConfig.GetTextureResolutionForSize(maxRes);
 		
-		GD.Print($"📐 Размер меша: {meshResX}x{meshResZ}, Разрешение текстуры: {texRes}x{texRes}");
+		GD.Print($"Размер меша: {meshResX}x{meshResZ}, Разрешение текстуры: {texRes}x{texRes}");
 
 		// Создаем пустое изображение с форматом RGBA8
 		Image finalImg = Image.CreateEmpty(texRes, texRes, false, Image.Format.Rgba8);
@@ -197,28 +197,28 @@ public static class RealWorldTexturePainter
 		Error saveErr = finalImg.SavePng(debugPath);
 		if (saveErr == Error.Ok)
 		{
-			GD.Print($"🔍 Debug: Текстура сохранена для отладки: {debugPath}");
-			GD.Print($"   Размер текстуры: {texRes}x{texRes}");
-			GD.Print($"   Разрешение меша: {meshResX}x{meshResZ}");
-			GD.Print($"   Диапазон высот вершин: {minHeight:F3} - {maxHeight:F3} (range: {heightRange:F3})");
-			GD.Print($"   Границы текстур: песок->трава={sandGrass:F2}, трава->камень={grassRock:F2}");
-			GD.Print($"   Переходы: песок [{sandGrass - 0.075f:F2} - {sandGrass + 0.075f:F2}], трава [{grassRock - 0.075f:F2} - {grassRock + 0.075f:F2}]");
+			GD.Print($"Debug: Текстура сохранена для отладки: {debugPath}");
+			GD.Print($"Размер текстуры: {texRes}x{texRes}");
+			GD.Print($"Разрешение меша: {meshResX}x{meshResZ}");
+			GD.Print($"Диапазон высот вершин: {minHeight:F3} - {maxHeight:F3} (range: {heightRange:F3})");
+			GD.Print($"Границы текстур: песок->трава={sandGrass:F2}, трава->камень={grassRock:F2}");
+			GD.Print($"Переходы: песок [{sandGrass - 0.075f:F2} - {sandGrass + 0.075f:F2}], трава [{grassRock - 0.075f:F2} - {grassRock + 0.075f:F2}]");
 			
 			// Выводим несколько примеров высот из исходного массива для отладки
-			GD.Print($"   Примеры высот из исходного массива:");
+			GD.Print($"Примеры высот из исходного массива:");
 			for (int i = 0; i < Math.Min(5, meshResX); i++)
 			{
 				for (int j = 0; j < Math.Min(5, meshResZ); j++)
 				{
 					float h = heights[i, j];
 					float normalizedH = heightRange > 0.001f ? (h - minHeight) / heightRange : 0.5f;
-					GD.Print($"     heights[{i},{j}] = {h:F3} (normalized: {normalizedH:F3})");
+					GD.Print($"heights[{i},{j}] = {h:F3} (normalized: {normalizedH:F3})");
 				}
 			}
 		}
 		else
 		{
-			GD.PrintErr($"❌ Ошибка при сохранении текстуры для отладки: {saveErr}");
+			GD.PrintErr($"Ошибка при сохранении текстуры для отладки: {saveErr}");
 		}
 
 		// Создаем ImageTexture из итогового изображения
@@ -238,7 +238,7 @@ public static class RealWorldTexturePainter
 		// Назначаем материал на MeshInstance3D
 		meshInstance.MaterialOverride = mat;
 
-		GD.Print("✅ RealWorldTexturePainter: Текстура успешно применена с плавным смешиванием по высоте");
+		GD.Print("RealWorldTexturePainter: Текстура успешно применена с плавным смешиванием по высоте");
 	}
 
 	// Вспомогательная функция для выборки пикселя из текстуры по координатам

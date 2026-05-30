@@ -123,8 +123,8 @@ title = "Open a Directory"
 file_mode = 2
 access = 2
 
-[node name="TestsResultDialog" type="AcceptDialog" parent="MainScroll/MainContent"]
-title = "Результаты тестов"
+#[node name="TestsResultDialog" type="AcceptDialog" parent="MainScroll/MainContent"]
+#title = "Результаты тестов"
 
 [node name="SectionMesh" type="PanelContainer" parent="MainScroll/MainContent"]
 layout_mode = 2
@@ -879,12 +879,12 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 14
 	text = "Экспорт в Blender (glTF пакет)"
 
-[node name="RunTestsButton" type="Button" parent="MainScroll/MainContent"]
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 14
-	text = "Провести тесты"
+#[node name="RunTestsButton" type="Button" parent="MainScroll/MainContent"]
+#custom_minimum_size = Vector2(0, 40)
+#layout_mode = 2
+#size_flags_horizontal = 3
+#theme_override_font_sizes/font_size = 14
+#text = "Провести тесты"
 
 [node name="Node3D" type="Node3D" parent="."]
 

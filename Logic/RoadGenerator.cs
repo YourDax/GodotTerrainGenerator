@@ -35,16 +35,16 @@ public static class RoadGenerator
 		float grassRock = 0.65f
 	)
 	{
-		GD.Print("🛣️ Начало генерации маски дорог...");
+		GD.Print("Начало генерации маски дорог...");
 		
 		// Создаем маску дорог
 		float[,] roadMask = new float[textureResolution, textureResolution];
 		
 		// Получаем массив высот из меша
-		float[,] heights = ExtractHeightsFromMesh(terrainMesh, terrainLength, terrainWidth, resolution);
+		float[,] heights = TerrainMeshSampling.ExtractHeightsFromMesh(terrainMesh, terrainLength, terrainWidth, resolution);
 		if (heights == null)
 		{
-			GD.PrintErr("❌ Не удалось извлечь высоты из меша");
+			GD.PrintErr("Не удалось извлечь высоты из меша");
 			return roadMask;
 		}
 		
@@ -60,18 +60,18 @@ public static class RoadGenerator
 		float grassMinHeight = sandGrassHeight + textureBoundaryMargin;
 		float grassMaxHeight = grassRockHeight - textureBoundaryMargin;
 		
-		GD.Print($"💧 Уровень воды: {waterHeight:F2}, с запасом: {effectiveWaterHeight:F2}");
-		GD.Print($"🌱 Зона травы: {grassMinHeight:F2} - {grassMaxHeight:F2}");
+		GD.Print($"Уровень воды: {waterHeight:F2}, с запасом: {effectiveWaterHeight:F2}");
+		GD.Print($"Зона травы: {grassMinHeight:F2} - {grassMaxHeight:F2}");
 		
 		// Генерируем ключевые точки (равномерно распределенные, не рядом друг с другом)
 		List<RoadPoint> keyPoints = GenerateKeyPoints(terrainLength, terrainWidth, heights, resolution, 
 			effectiveWaterHeight, grassMinHeight, grassMaxHeight);
 		
-		GD.Print($"📍 Сгенерировано {keyPoints.Count} ключевых точек");
+		GD.Print($"Сгенерировано {keyPoints.Count} ключевых точек");
 		
 		if (keyPoints.Count < 2)
 		{
-			GD.PrintErr("❌ Недостаточно ключевых точек");
+			GD.PrintErr("Недостаточно ключевых точек");
 			return roadMask;
 		}
 		
@@ -79,92 +79,13 @@ public static class RoadGenerator
 		List<List<RoadPoint>> roadPaths = ConnectPointsWithRoads(keyPoints, heights, terrainLength, terrainWidth, 
 			resolution, effectiveWaterHeight, grassMinHeight, grassMaxHeight);
 		
-		GD.Print($"🛤️ Создано {roadPaths.Count} путей дорог");
+		GD.Print($"Создано {roadPaths.Count} путей дорог");
 		
 		// Заполняем маску дорог
 		FillRoadMask(roadMask, roadPaths, terrainLength, terrainWidth, textureResolution, roadWidth);
 		
-		GD.Print($"✅ Маска дорог создана: {textureResolution}x{textureResolution}");
+		GD.Print($"Маска дорог создана: {textureResolution}x{textureResolution}");
 		return roadMask;
-	}
-	
-	// Извлечение высот из меша
-	private static float[,] ExtractHeightsFromMesh(MeshInstance3D meshInstance, int length, int width, int resolution)
-	{
-		var mesh = meshInstance.Mesh;
-		if (mesh == null || mesh.GetSurfaceCount() == 0)
-			return null;
-		
-		ArrayMesh arrayMesh = mesh as ArrayMesh;
-		if (arrayMesh == null)
-		{
-			GD.PrintErr("Mesh не является ArrayMesh!");
-			return null;
-		}
-		
-		var surfaceArrays = arrayMesh.SurfaceGetArrays(0);
-		Godot.Collections.Array verticesArray = (Godot.Collections.Array)surfaceArrays[(int)ArrayMesh.ArrayType.Vertex];
-		Godot.Collections.Array uvArray = (Godot.Collections.Array)surfaceArrays[(int)ArrayMesh.ArrayType.TexUV];
-		
-		if (verticesArray == null || verticesArray.Count == 0)
-			return null;
-		
-		float[,] heights = new float[resolution, resolution];
-		bool[,] heightsFilled = new bool[resolution, resolution];
-		
-		// Заполняем массив высот из вершин
-		for (int i = 0; i < verticesArray.Count; i++)
-		{
-			Vector3 vert = (Vector3)verticesArray[i];
-			Vector2 uv = uvArray != null && i < uvArray.Count ? (Vector2)uvArray[i] : Vector2.Zero;
-			
-			int x = (int)Mathf.Round(uv.X * (resolution - 1));
-			int z = (int)Mathf.Round(uv.Y * (resolution - 1));
-			
-			x = Mathf.Clamp(x, 0, resolution - 1);
-			z = Mathf.Clamp(z, 0, resolution - 1);
-			
-			if (!heightsFilled[x, z] || Mathf.Abs(uv.X * (resolution - 1) - x) < 0.1f)
-			{
-				heights[x, z] = vert.Y;
-				heightsFilled[x, z] = true;
-			}
-		}
-		
-		// Заполняем пропущенные ячейки интерполяцией
-		for (int z = 0; z < resolution; z++)
-		{
-			for (int x = 0; x < resolution; x++)
-			{
-				if (!heightsFilled[x, z])
-				{
-					float sum = 0.0f;
-					int count = 0;
-					
-					for (int dz = -1; dz <= 1; dz++)
-					{
-						for (int dx = -1; dx <= 1; dx++)
-						{
-							int nx = x + dx;
-							int nz = z + dz;
-							if (nx >= 0 && nx < resolution && nz >= 0 && nz < resolution && heightsFilled[nx, nz])
-							{
-								sum += heights[nx, nz];
-								count++;
-							}
-						}
-					}
-					
-					if (count > 0)
-					{
-						heights[x, z] = sum / count;
-						heightsFilled[x, z] = true;
-					}
-				}
-			}
-		}
-		
-		return heights;
 	}
 	
 	// Генерация ключевых точек (равномерно распределенных, не рядом друг с другом)
@@ -180,7 +101,7 @@ public static class RoadGenerator
 		else if (maxMapSize > 100) numPoints = 10;
 		else if (maxMapSize > 50) numPoints = 8;
 		
-		GD.Print($"📍 Генерируем {numPoints} точек для карты {length}x{width}");
+		GD.Print($"Генерируем {numPoints} точек для карты {length}x{width}");
 		
 		float halfLength = length * 0.5f;
 		float halfWidth = width * 0.5f;
@@ -215,7 +136,7 @@ public static class RoadGenerator
 		
 		if (candidates.Count == 0)
 		{
-			GD.PrintErr("❌ Не найдено валидных кандидатов");
+			GD.PrintErr("Не найдено валидных кандидатов");
 			return points;
 		}
 		
@@ -273,7 +194,7 @@ public static class RoadGenerator
 			}
 		}
 		
-		GD.Print($"📍 Сгенерировано {points.Count} точек");
+		GD.Print($"Сгенерировано {points.Count} точек");
 		return points;
 	}
 	
@@ -521,7 +442,7 @@ public static class RoadGenerator
 				// Если не удалось обойти, прерываем путь
 				if (!foundPath)
 				{
-					GD.Print($"⚠️ Не удалось обойти препятствие на шаге {step}/{numSteps}, прерываем путь");
+					GD.Print($"Не удалось обойти препятствие на шаге {step}/{numSteps}, прерываем путь");
 					break;
 				}
 			}

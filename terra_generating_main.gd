@@ -307,37 +307,34 @@ func _on_generate_pressed(config: Dictionary):
 
 		print("TerrainGenerator добавлен в сцену")
 
-	# В режиме реальной карты не показываем прогресс-бар/окно
-	if not real_map_mode:
-		# Создаем и показываем окно прогресса
-		progress_dialog = PROGRESS_DIALOG.instantiate()
-		get_editor_interface().get_base_control().add_child(progress_dialog)
-		progress_dialog.update_progress(0.0, "Инициализация генерации...")
-		if progress_dialog.has_method("start_generation_timer"):
-			progress_dialog.start_generation_timer()
-		if progress_dialog.has_signal("cancel_requested"):
-			var cancel_callable := Callable(self, "_on_progress_dialog_cancel_requested")
-			if progress_dialog.is_connected("cancel_requested", cancel_callable):
-				progress_dialog.disconnect("cancel_requested", cancel_callable)
-			progress_dialog.connect("cancel_requested", cancel_callable)
-		
-		# Подключаем сигнал для обновления прогресса из C#
-		# В Godot 4 C# сигналы доступны через connect
-		var progress_callable := Callable(self, "_on_progress_updated")
-		var connected := false
-		if terrain_instance.has_signal("progress_updated"):
-			if terrain_instance.is_connected("progress_updated", progress_callable):
-				terrain_instance.disconnect("progress_updated", progress_callable)
-			terrain_instance.connect("progress_updated", progress_callable)
-			connected = true
-		if terrain_instance.has_signal("ProgressUpdated"):
-			if terrain_instance.is_connected("ProgressUpdated", progress_callable):
-				terrain_instance.disconnect("ProgressUpdated", progress_callable)
-			terrain_instance.connect("ProgressUpdated", progress_callable)
-			connected = true
-		if not connected:
-			push_warning("Не найден сигнал прогресса у TerrainGenerator (ожидался progress_updated или ProgressUpdated)")
-		_active_terrain_instance = terrain_instance
+	# Показываем окно прогресса и подключаем отмену для random и real-map режимов.
+	progress_dialog = PROGRESS_DIALOG.instantiate()
+	get_editor_interface().get_base_control().add_child(progress_dialog)
+	progress_dialog.update_progress(0.0, "Инициализация генерации...")
+	if progress_dialog.has_method("start_generation_timer"):
+		progress_dialog.start_generation_timer()
+	if progress_dialog.has_signal("cancel_requested"):
+		var cancel_callable := Callable(self, "_on_progress_dialog_cancel_requested")
+		if progress_dialog.is_connected("cancel_requested", cancel_callable):
+			progress_dialog.disconnect("cancel_requested", cancel_callable)
+		progress_dialog.connect("cancel_requested", cancel_callable)
+
+	# Подключаем сигнал для обновления прогресса из C#
+	var progress_callable := Callable(self, "_on_progress_updated")
+	var connected := false
+	if terrain_instance.has_signal("progress_updated"):
+		if terrain_instance.is_connected("progress_updated", progress_callable):
+			terrain_instance.disconnect("progress_updated", progress_callable)
+		terrain_instance.connect("progress_updated", progress_callable)
+		connected = true
+	if terrain_instance.has_signal("ProgressUpdated"):
+		if terrain_instance.is_connected("ProgressUpdated", progress_callable):
+			terrain_instance.disconnect("ProgressUpdated", progress_callable)
+		terrain_instance.connect("ProgressUpdated", progress_callable)
+		connected = true
+	if not connected:
+		push_warning("Не найден сигнал прогресса у TerrainGenerator (ожидался progress_updated или ProgressUpdated)")
+	_active_terrain_instance = terrain_instance
 	
 	# Вызываем метод Generate
 	print("Вызываю TerrainGenerator.Generate() из C#...")

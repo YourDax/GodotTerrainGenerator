@@ -41,8 +41,8 @@ signal export_blender_requested(target_dir)
 @onready var realmap_texture_file_dialog = $"MainScroll/MainContent/SectionTextures/Body/RealMapTextureFileDialog"
 @onready var export_button = $"MainScroll/MainContent/ExportBlenderButton"
 @onready var export_folder_dialog = $"MainScroll/MainContent/ExportFolderDialog"
-@onready var run_tests_button = $"MainScroll/MainContent/RunTestsButton"
-@onready var tests_result_dialog = $"MainScroll/MainContent/TestsResultDialog"
+#@onready var run_tests_button = $"MainScroll/MainContent/RunTestsButton"
+#@onready var tests_result_dialog = $"MainScroll/MainContent/TestsResultDialog"
 
 var continue_generation_check: CheckBox = null
 var continue_direction_selector: OptionButton = null
@@ -113,20 +113,20 @@ var texture_save_path := ""
 var location_presets = {
 	"Выберите место...": [0.0, 0.0, 0.0, 0.0],
 	# Боксы сделаны крупнее, чтобы итоговый меш real-map не был слишком маленьким
-	"🏙️ Москва": [55.85, 37.45, 55.65, 37.80],
-	"🏙️ Санкт-Петербург": [60.05, 30.10, 59.80, 30.55],
-	"🏙️ Екатеринбург": [56.95, 60.45, 56.75, 60.85],
-	"🏙️ Новосибирск": [55.15, 82.75, 54.90, 83.10],
-	"🏙️ Казань": [55.90, 48.95, 55.70, 49.30],
-	"🏙️ Нижний Новгород": [56.45, 43.75, 56.20, 44.25],
-	"🏙️ Самара": [53.35, 50.00, 53.10, 50.35],
-	"🏙️ Тольятти": [53.65, 49.15, 53.45, 49.55],
-	"🏙️ Ульяновск": [54.45, 48.15, 54.20, 48.55],
-	"🏙️ Сочи": [43.72, 39.55, 43.45, 39.95],
-	"🏔️ Эльбрус (район)": [43.45, 42.25, 43.20, 42.55],
-	"🏔️ Домбай (район)": [43.38, 41.45, 43.20, 41.78],
-	"🏔️ Байкал (Листвянка, район)": [51.95, 104.70, 51.75, 105.05],
-	"🏔️ Урал (гора Народная, район)": [65.12, 60.20, 64.95, 60.65],
+	"Москва": [55.85, 37.45, 55.65, 37.80],
+	"Санкт-Петербург": [60.05, 30.10, 59.80, 30.55],
+	"Екатеринбург": [56.95, 60.45, 56.75, 60.85],
+	"Новосибирск": [55.15, 82.75, 54.90, 83.10],
+	"Казань": [55.90, 48.95, 55.70, 49.30],
+	"Нижний Новгород": [56.45, 43.75, 56.20, 44.25],
+	"Самара": [53.35, 50.00, 53.10, 50.35],
+	"Тольятти": [53.65, 49.15, 53.45, 49.55],
+	"Ульяновск": [54.45, 48.15, 54.20, 48.55],
+	"Сочи": [43.72, 39.55, 43.45, 39.95],
+	"Эльбрус (район)": [43.45, 42.25, 43.20, 42.55],
+	"Домбай (район)": [43.38, 41.45, 43.20, 41.78],
+	"Байкал (Листвянка, район)": [51.95, 104.70, 51.75, 105.05],
+	"Урал (гора Народная, район)": [65.12, 60.20, 64.95, 60.65],
 }
 
 @onready var location_presets_button = $"MainScroll/MainContent/SectionMesh/Body/VBoxContainerRealMap/LocationPresets"
@@ -179,7 +179,7 @@ func _ready():
 		island_row0.visible = not real_map_check.button_pressed
 	_place_generate_button_top()
 	_place_export_button_bottom()
-	_place_tests_button_bottom()
+	#_place_tests_button_bottom()
 	_apply_visual_design()
 	if Engine.is_editor_hint() and enable_editor_manual_layout_mode:
 		_apply_editor_manual_layout_mode()
@@ -220,15 +220,15 @@ func _place_export_button_bottom() -> void:
 		export_btn.reparent(main_content)
 	main_content.move_child(export_btn, main_content.get_child_count() - 1)
 
-func _place_tests_button_bottom() -> void:
-	# Перемещает кнопку запуска тестов в нижнюю часть панели.
-	var main_content := get_node_or_null("MainScroll/MainContent") as VBoxContainer
-	var tests_btn := get_node_or_null("MainScroll/MainContent/RunTestsButton") as Button
-	if main_content == null or tests_btn == null:
-		return
-	if tests_btn.get_parent() != main_content:
-		tests_btn.reparent(main_content)
-	main_content.move_child(tests_btn, main_content.get_child_count() - 1)
+#func _place_tests_button_bottom() -> void:
+	## Перемещает кнопку запуска тестов в нижнюю часть панели.
+	#var main_content := get_node_or_null("MainScroll/MainContent") as VBoxContainer
+	#var tests_btn := get_node_or_null("MainScroll/MainContent/RunTestsButton") as Button
+	#if main_content == null or tests_btn == null:
+		#return
+	#if tests_btn.get_parent() != main_content:
+		#tests_btn.reparent(main_content)
+	#main_content.move_child(tests_btn, main_content.get_child_count() - 1)
 
 func _apply_visual_design() -> void:
 	# Применяет локальную стилизацию панели и её секций.
@@ -271,10 +271,10 @@ func _apply_visual_design() -> void:
 		export_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		export_btn.custom_minimum_size = Vector2(0, 40)
 
-	var run_tests_btn: Button = get_node_or_null("MainScroll/MainContent/RunTestsButton") as Button
-	if run_tests_btn:
-		run_tests_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		run_tests_btn.custom_minimum_size = Vector2(0, 40)
+	#var run_tests_btn: Button = get_node_or_null("MainScroll/MainContent/RunTestsButton") as Button
+	#if run_tests_btn:
+		#run_tests_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		#run_tests_btn.custom_minimum_size = Vector2(0, 40)
 
 	_tune_row_layout(random_block)
 	_tune_row_layout(realmap_block)
@@ -473,8 +473,8 @@ func _on_location_preset_selected(index: int):
 		rightdownlat_input.value = coords[2]  # Южная широта
 		rightdownlng_input.value = coords[3]  # Восточная долгота
 		
-		print("📍 Выбрано место: ", location_name)
-		print("   Координаты: N=", coords[0], " W=", coords[1], " S=", coords[2], " E=", coords[3])
+		print("Выбрано место: ", location_name)
+		print("  Координаты: N=", coords[0], " W=", coords[1], " S=", coords[2], " E=", coords[3])
 
 func _setup_resolution_mode():
 	# Настраивает список режимов разрешения terrain.
@@ -744,29 +744,29 @@ func _setup_export_controls() -> void:
 		export_folder_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 		if not export_folder_dialog.dir_selected.is_connected(_on_export_folder_selected):
 			export_folder_dialog.dir_selected.connect(_on_export_folder_selected)
-	if run_tests_button and not run_tests_button.pressed.is_connected(_on_run_tests_button_pressed):
-		run_tests_button.pressed.connect(_on_run_tests_button_pressed)
-	if tests_result_dialog:
-		tests_result_dialog.title = "Результаты тестов"
-		tests_result_dialog.dialog_text = ""
+	#if run_tests_button and not run_tests_button.pressed.is_connected(_on_run_tests_button_pressed):
+		#run_tests_button.pressed.connect(_on_run_tests_button_pressed)
+	#if tests_result_dialog:
+		#tests_result_dialog.title = "Результаты тестов"
+		#tests_result_dialog.dialog_text = ""
 
-func _on_run_tests_button_pressed() -> void:
-	# Запускает тесты и показывает результаты.
-	if tests_result_dialog == null:
-		push_error("Tests result dialog is missing")
-		return
-	var runner_script = load("res://addons/terragenerating/Tests/test_runner.gd")
-	if runner_script == null:
-		tests_result_dialog.dialog_text = "Не удалось найти скрипт запуска тестов."
-		tests_result_dialog.popup_centered()
-		return
-	var runner = runner_script.new()
-	var ok := bool(await runner.run_all_tests())
-	if ok:
-		tests_result_dialog.dialog_text = "Тесты пройдены успешно."
-	else:
-		tests_result_dialog.dialog_text = "Тесты завершились с ошибками."
-	tests_result_dialog.popup_centered()
+#func _on_run_tests_button_pressed() -> void:
+	## Запускает тесты и показывает результаты.
+	#if tests_result_dialog == null:
+		#push_error("Tests result dialog is missing")
+		#return
+	#var runner_script = load("res://addons/terragenerating/Tests/test_runner.gd")
+	#if runner_script == null:
+		#tests_result_dialog.dialog_text = "Не удалось найти скрипт запуска тестов."
+		#tests_result_dialog.popup_centered()
+		#return
+	#var runner = runner_script.new()
+	#var ok := bool(await runner.run_all_tests())
+	#if ok:
+		#tests_result_dialog.dialog_text = "Тесты пройдены успешно."
+	#else:
+		#tests_result_dialog.dialog_text = "Тесты завершились с ошибками."
+	#tests_result_dialog.popup_centered()
 
 func _on_export_button_pressed() -> void:
 	# Открывает диалог для экспорта.
